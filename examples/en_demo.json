@@ -1,0 +1,158 @@
+{
+  "schema_version": "1.0.0",
+  "session_id": "sess-demo-en-001",
+  "language": "en",
+  "style_id": "minimal",
+  "source": {
+    "link": "https://example.org/en/health-community-garden",
+    "publisher": "Example Daily",
+    "published_at": "2026-06-07T00:00:00+00:00"
+  },
+  "article": {
+    "title": "Community Gardens Help Adults Learn Together",
+    "fulltext": "A city neighborhood opened a new community garden program. Adults meet each week to grow vegetables, read short guides, and write notes about what they learn."
+  },
+  "simplified": {
+    "summary": "Adults use the garden program to practice reading and writing in simple steps.",
+    "level": "A2",
+    "keywords": ["adults", "garden", "reading", "writing"]
+  },
+  "characters": [
+    {
+      "id": "char_guide",
+      "name": "Guide",
+      "description": "Mentor using plain language."
+    },
+    {
+      "id": "char_learner",
+      "name": "Learner",
+      "description": "Adult participant practicing literacy."
+    }
+  ],
+  "panels": [
+    {
+      "panel_id": "panel_1",
+      "frame_index": 1,
+      "scene_description": "Two adults read a short instruction card in a garden.",
+      "dialogue": [
+        {
+          "character_id": "char_guide",
+          "text": "We read one short instruction together."
+        },
+        {
+          "character_id": "char_learner",
+          "text": "Now I can explain it in my own words."
+        }
+      ],
+      "bubbles": [
+        {
+          "bbox_px": [30, 30, 300, 90]
+        },
+        {
+          "bbox_px": [30, 140, 300, 90]
+        }
+      ],
+      "render": {
+        "image_path": "assets/panel_1.png",
+        "overlay_applied": true
+      }
+    },
+    {
+      "panel_id": "panel_2",
+      "frame_index": 2,
+      "scene_description": "The learner writes a short sentence about the activity.",
+      "dialogue": [
+        {
+          "character_id": "char_guide",
+          "text": "Write one key idea from the article."
+        },
+        {
+          "character_id": "char_learner",
+          "text": "The garden helps me practice reading every week."
+        }
+      ],
+      "bubbles": [
+        {
+          "bbox_px": [30, 30, 300, 90]
+        },
+        {
+          "bbox_px": [30, 140, 300, 90]
+        }
+      ],
+      "render": {
+        "image_path": "assets/panel_2.png",
+        "overlay_applied": true
+      }
+    },
+    {
+      "panel_id": "panel_3",
+      "frame_index": 3,
+      "scene_description": "The group shares what they learned.",
+      "dialogue": [
+        {
+          "character_id": "char_guide",
+          "text": "You improved your writing with clear words."
+        },
+        {
+          "character_id": "char_learner",
+          "text": "I feel more confident reading news now."
+        }
+      ],
+      "bubbles": [
+        {
+          "bbox_px": [30, 30, 300, 90]
+        },
+        {
+          "bbox_px": [30, 140, 300, 90]
+        }
+      ],
+      "render": {
+        "image_path": "assets/panel_3.png",
+        "overlay_applied": true
+      }
+    }
+  ],
+  "exercises": [
+    {
+      "exercise_id": "ex_panel_1",
+      "panel_id": "panel_1",
+      "prompt": "We read one short ____ together.",
+      "blanks": ["____"],
+      "answer_key": ["instruction"],
+      "feedback_rules": {
+        "case_sensitive": false,
+        "allow_trim_spaces": true
+      }
+    },
+    {
+      "exercise_id": "ex_panel_2",
+      "panel_id": "panel_2",
+      "prompt": "Write one key idea from the ____.",
+      "blanks": ["____"],
+      "answer_key": ["article"],
+      "feedback_rules": {
+        "case_sensitive": false,
+        "allow_trim_spaces": true
+      }
+    },
+    {
+      "exercise_id": "ex_panel_3",
+      "panel_id": "panel_3",
+      "prompt": "I feel more confident reading ____ now.",
+      "blanks": ["____"],
+      "answer_key": ["news"],
+      "feedback_rules": {
+        "case_sensitive": false,
+        "allow_trim_spaces": true
+      }
+    }
+  ],
+  "trace": [
+    {
+      "ts": "2026-06-07T00:00:00+00:00",
+      "step": "demo",
+      "status": "ok",
+      "message": "Deterministic example"
+    }
+  ]
+}
