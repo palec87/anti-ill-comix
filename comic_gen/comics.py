@@ -9,6 +9,7 @@ from typing import Any
 from . import exercise
 from .image_backend import ImageGenerationError, MAX_SEED, generate_panel_image
 from .text_backend import (
+    TEXT_BACKEND_PIPELINE,
     TextGenerationError,
     UnifiedGenerationError,
     generate_characters_from_text,
@@ -121,6 +122,7 @@ def generate_characters(
     document: dict[str, Any],
     enable_model_generation: bool = False,
     model_repo_id: str = "openbmb/MiniCPM5-1B",
+    text_backend_mode: str = TEXT_BACKEND_PIPELINE,
 ) -> None:
     language = document.get("language", "en")
     fulltext = str(document.get("article", {}).get("fulltext", "")).strip()
@@ -140,6 +142,7 @@ def generate_characters(
                 fulltext=prompt_text,
                 language=language,
                 model_repo_id=model_repo_id,
+                backend_mode=text_backend_mode,
             )
             extracted = _extract_json_array(raw)
             if extracted is None:
@@ -425,6 +428,7 @@ def generate_story_pipeline(
     enable_model_generation: bool,
     text_model_repo_id: str,
     image_options: dict[str, Any] | None = None,
+    text_backend_mode: str = TEXT_BACKEND_PIPELINE,
 ) -> None:
     if not enable_model_generation:
         add_trace(
@@ -451,6 +455,7 @@ def generate_story_pipeline(
             article=document.get("article", {}),
             panel_count=panel_count,
             model_repo_id=text_model_repo_id,
+            backend_mode=text_backend_mode,
         )
         (
             simplified,

@@ -9,6 +9,9 @@ from .prompts import UNIFIED_SESSION_PROMPT
 
 _GENERATOR: Any | None = None
 _GENERATOR_MODEL_ID = ""
+_CHAT_MODEL: Any | None = None
+_CHAT_TOKENIZER: Any | None = None
+_CHAT_MODEL_ID = ""
 
 
 class TextGenerationError(RuntimeError):
@@ -17,6 +20,10 @@ class TextGenerationError(RuntimeError):
 
 class UnifiedGenerationError(RuntimeError):
     pass
+
+
+TEXT_BACKEND_PIPELINE = "pipeline"
+TEXT_BACKEND_CHAT_TEMPLATE = "chat_template"
 
 
 def _get_generator(model_repo_id: str) -> Any:
@@ -42,8 +49,9 @@ def _get_generator(model_repo_id: str) -> Any:
             device=device,
         )
     except Exception as exc:
+        detail = f"{type(exc).__name__}: {exc}"
         raise TextGenerationError(
-            f"failed to load text model '{model_repo_id}'"
+            f"failed to load text model '{model_repo_id}' ({detail})"
         ) from exc
 
     _GENERATOR = generator
@@ -51,13 +59,171 @@ def _get_generator(model_repo_id: str) -> Any:
     return generator
 
 
+def _get_chat_components(model_repo_id: str) -> tuple[Any, Any]:
+    global _CHAT_MODEL, _CHAT_TOKENIZER, _CHAT_MODEL_ID
+
+    if (
+        _CHAT_MODEL is not None
+        and _CHAT_TOKENIZER is not None
+        and _CHAT_MODEL_ID == model_repo_id
+    ):
+        return _CHAT_MODEL, _CHAT_TOKENIZER
+
+    try:
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+    except Exception as exc:
+        raise TextGenerationError(
+            "transformers import failed for chat_template backend"
+        ) from exc
+
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_repo_id,
+            trust_remote_code=True,
+        )
+        model = AutoModelForCausalLM.from_pretrained(
+            model_repo_id,
+            torch_dtype="auto",
+            device_map="auto",
+            trust_remote_code=True,
+        )
+    except Exception as exc:
+        detail = f"{type(exc).__name__}: {exc}"
+        raise TextGenerationError(
+            f"failed to load chat_template model '{model_repo_id}' ({detail})"
+        ) from exc
+
+    _CHAT_MODEL = model
+    _CHAT_TOKENIZER = tokenizer
+    _CHAT_MODEL_ID = model_repo_id
+    return model, tokenizer
+
+
+def _model_device(model: Any) -> Any:
+    device = getattr(model, "device", None)
+    if device is not None:
+        return device
+    try:
+        import torch
+
+        return torch.device("cpu")
+    except Exception:
+        return "cpu"
+
+
+def _generate_with_pipeline(
+    prompt: str,
+    model_repo_id: str,
+    max_new_tokens: int,
+    do_sample: bool,
+    temperature: float,
+) -> str:
+    generator = _get_generator(model_repo_id)
+    try:
+        outputs = generator(
+            prompt,
+            max_new_tokens=max_new_tokens,
+            do_sample=do_sample,
+            temperature=temperature,
+            return_full_text=False,
+        )
+    except Exception as exc:
+        raise TextGenerationError("text generation failed (pipeline)") from exc
+
+    if not outputs:
+        raise TextGenerationError("empty text generation output")
+
+    generated = outputs[0].get("generated_text", "")
+    if not isinstance(generated, str) or not generated.strip():
+        raise TextGenerationError("invalid text generation output")
+    return generated
+
+
+def _generate_with_chat_template(
+    prompt: str,
+    model_repo_id: str,
+    max_new_tokens: int,
+) -> str:
+    model, tokenizer = _get_chat_components(model_repo_id)
+    messages = [{"role": "user", "content": prompt}]
+    try:
+        inputs = tokenizer.apply_chat_template(
+            messages,
+            tokenize=True,
+            add_generation_prompt=True,
+            enable_thinking=False,
+            return_dict=True,
+            return_tensors="pt",
+        )
+    except TypeError:
+        inputs = tokenizer.apply_chat_template(
+            messages,
+            tokenize=True,
+            add_generation_prompt=True,
+            return_dict=True,
+            return_tensors="pt",
+        )
+    except Exception as exc:
+        raise TextGenerationError(
+            "failed to build chat template inputs"
+        ) from exc
+
+    try:
+        device = _model_device(model)
+        inputs = {k: v.to(device) for k, v in inputs.items()}
+        outputs = model.generate(
+            **inputs,
+            max_new_tokens=max_new_tokens,
+            do_sample=False,
+        )
+        prompt_len = inputs["input_ids"].shape[-1]
+        generated_ids = outputs[0][prompt_len:]
+        generated = tokenizer.decode(generated_ids, skip_special_tokens=True)
+    except Exception as exc:
+        raise TextGenerationError(
+            "text generation failed (chat_template)"
+        ) from exc
+
+    if not isinstance(generated, str) or not generated.strip():
+        raise TextGenerationError("invalid text generation output")
+    return generated
+
+
+def _generate_text(
+    prompt: str,
+    model_repo_id: str,
+    backend_mode: str,
+    max_new_tokens: int,
+    do_sample: bool,
+    temperature: float,
+) -> str:
+    mode = backend_mode.strip().lower()
+    if mode == TEXT_BACKEND_CHAT_TEMPLATE:
+        return _generate_with_chat_template(
+            prompt=prompt,
+            model_repo_id=model_repo_id,
+            max_new_tokens=max_new_tokens,
+        )
+    if mode == TEXT_BACKEND_PIPELINE:
+        return _generate_with_pipeline(
+            prompt=prompt,
+            model_repo_id=model_repo_id,
+            max_new_tokens=max_new_tokens,
+            do_sample=do_sample,
+            temperature=temperature,
+        )
+    raise TextGenerationError(
+        f"unsupported text backend mode '{backend_mode}'"
+    )
+
+
 def generate_characters_from_text(
     document: dict[str, Any],
     fulltext: str,
     language: str,
     model_repo_id: str,
+    backend_mode: str = TEXT_BACKEND_PIPELINE,
 ) -> str:
-    generator = _get_generator(model_repo_id)
     prompt = (
         "Create 2 or 3 comic characters from the article below. "
         "First summarize the article in one sentence mentally, "
@@ -70,28 +236,22 @@ def generate_characters_from_text(
     )
 
     try:
-        outputs = generator(
+        generated = _generate_text(
             prompt,
+            model_repo_id=model_repo_id,
+            backend_mode=backend_mode,
             max_new_tokens=220,
             do_sample=False,
             temperature=0.1,
-            return_full_text=False,
         )
         add_trace(
             document,
             "text_generation_output",
             "ok",
-            f"Text generation output: {outputs}",
+            f"Text generation backend={backend_mode}",
         )
     except Exception as exc:
         raise TextGenerationError("text generation failed") from exc
-
-    if not outputs:
-        raise TextGenerationError("empty text generation output")
-
-    generated = outputs[0].get("generated_text", "")
-    if not isinstance(generated, str) or not generated.strip():
-        raise TextGenerationError("invalid text generation output")
     return generated
 
 
@@ -318,13 +478,13 @@ def generate_session_fields_from_article(
     article: dict[str, Any],
     panel_count: int,
     model_repo_id: str,
+    backend_mode: str = TEXT_BACKEND_PIPELINE,
 ) -> dict[str, Any]:
     fulltext = str(article.get("fulltext", "")).strip()
     title = str(article.get("title", "")).strip()
     if not fulltext:
         raise UnifiedGenerationError("article.fulltext is required")
 
-    generator = _get_generator(model_repo_id)
     target_count = max(3, min(5, panel_count))
     prompt = (
         f"{UNIFIED_SESSION_PROMPT}\n"
@@ -335,19 +495,17 @@ def generate_session_fields_from_article(
         f"article_fulltext={fulltext}\n"
     )
     try:
-        outputs = generator(
+        raw_text = _generate_text(
             prompt,
+            model_repo_id=model_repo_id,
+            backend_mode=backend_mode,
             max_new_tokens=1600,
             do_sample=False,
             temperature=0.1,
-            return_full_text=False,
         )
     except Exception as exc:
         raise UnifiedGenerationError("model generation call failed") from exc
 
-    if not outputs:
-        raise UnifiedGenerationError("empty model output")
-    raw_text = outputs[0].get("generated_text", "")
     if not isinstance(raw_text, str) or not raw_text.strip():
         raise UnifiedGenerationError("invalid model output text")
 

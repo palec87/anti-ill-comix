@@ -23,6 +23,7 @@ MAX_SEED = 2**31 - 1
 MAX_IMAGE_SIZE = 512
 DEFAULT_IMAGE_MODEL_ID = "stabilityai/sdxl-turbo"
 DEFAULT_OPENBMB_TEXT_MODEL_ID = "openbmb/MiniCPM5-1B"
+DEFAULT_TEXT_BACKEND_MODE = "chat_template"
 
 
 def _render_source(document: dict[str, Any]) -> str:
@@ -247,6 +248,7 @@ def generate_strip(
             panel_count=panel_count,
             enable_model_generation=enable_model_generation,
             text_model_repo_id=DEFAULT_OPENBMB_TEXT_MODEL_ID,
+            text_backend_mode=DEFAULT_TEXT_BACKEND_MODE,
             image_options={
                 "model_repo_id": DEFAULT_IMAGE_MODEL_ID,
                 "negative_prompt": negative_prompt,
