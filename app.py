@@ -128,7 +128,7 @@ def _panel_image_src(panel: dict[str, Any]) -> tuple[str, str]:
 
 
 def _panel_image_html(panel: dict[str, Any]) -> str:
-    image_src, source_label = _panel_image_src(panel)
+    image_src, _ = _panel_image_src(panel)
     image_tag = (
         "<img src='"
         f"{image_src}' alt='Panel {panel['frame_index']}' "
@@ -137,7 +137,6 @@ def _panel_image_html(panel: dict[str, Any]) -> str:
     return (
         "<div class='panel-media'>"
         f"{image_tag}"
-        # f"<div class='image-meta'>image: {source_label}</div>"
         "</div>"
     )
 
@@ -180,12 +179,6 @@ def _render_panels_html(
     cards = []
     for panel in document.get("panels", []):
         image_html = _panel_image_html(panel)
-        dialogue_html = "".join(
-            [
-                _bubble_html(line)
-                for line in panel.get("dialogue", [])
-            ]
-        )
         if debug_mode:
             cards.append(
                 (
@@ -238,7 +231,7 @@ def generate_strip(
     style_id: str,
     use_live_feed: bool,
     panel_count: int,
-    enable_live_images: bool,
+    enable_model_generation: bool,
     negative_prompt: str,
     seed: int,
     randomize_seed: bool,
@@ -254,13 +247,12 @@ def generate_strip(
     document.setdefault("ui", {})["debug_mode"] = debug_mode
 
     try:
-        comics.simplify_article(document)
-        comics.generate_characters(document)
-        comics.generate_panels(
+        comics.generate_story_pipeline(
             document,
             panel_count=panel_count,
+            enable_model_generation=enable_model_generation,
+            text_model_repo_id=DEFAULT_OPENBMB_TEXT_MODEL_ID,
             image_options={
-                "enable_live_images": enable_live_images,
                 "model_repo_id": DEFAULT_IMAGE_MODEL_ID,
                 "negative_prompt": negative_prompt,
                 "seed": seed,
@@ -271,8 +263,6 @@ def generate_strip(
                 "num_inference_steps": num_inference_steps,
             },
         )
-        comics.apply_overlay(document)
-        exercise.generate_exercises(document)
         trace.add_trace(
             document,
             "step7_ui",
@@ -304,7 +294,7 @@ def generate_strip_ui(
     style_id: str,
     use_live_feed: bool,
     panel_count: int,
-    enable_live_images: bool,
+    enable_model_generation: bool,
     negative_prompt: str,
     seed: int,
     randomize_seed: bool,
@@ -330,7 +320,7 @@ def generate_strip_ui(
         style_id,
         use_live_feed,
         panel_count,
-        enable_live_images,
+        enable_model_generation,
         negative_prompt,
         seed,
         randomize_seed,
@@ -427,9 +417,9 @@ with gr.Blocks() as demo:
                 value=False,
             )
 
-        with gr.Accordion("Image Generation (Optional)", open=False):
-            enable_live_images = gr.Checkbox(
-                label="Enable live panel image generation",
+        with gr.Accordion("Model Generation (Optional)", open=False):
+            enable_model_generation_input = gr.Checkbox(
+                label="Enable model generation (text + images)",
                 value=False,
             )
             debug_mode_input = gr.Checkbox(
@@ -515,7 +505,7 @@ with gr.Blocks() as demo:
             style_input,
             live_feed_input,
             panel_count,
-            enable_live_images,
+            enable_model_generation_input,
             negative_prompt_input,
             seed_input,
             randomize_seed_input,

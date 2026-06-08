@@ -1,10 +1,19 @@
 from __future__ import annotations
 
+import json
 import re
+from pathlib import Path
 from time import perf_counter
 from typing import Any
 
+from . import exercise
 from .image_backend import ImageGenerationError, MAX_SEED, generate_panel_image
+from .text_backend import (
+    TextGenerationError,
+    UnifiedGenerationError,
+    generate_characters_from_text,
+    generate_session_fields_from_article,
+)
 from .trace import add_trace
 
 STYLE_SCENE_HINTS = {
@@ -13,6 +22,10 @@ STYLE_SCENE_HINTS = {
     "minimal": "simple shapes and high readability",
     "retro": "vintage ink and halftone texture",
 }
+
+
+class ModelPipelineError(RuntimeError):
+    pass
 
 
 def _split_sentences(text: str) -> list[str]:
@@ -42,15 +55,15 @@ def simplify_article(document: dict[str, Any]) -> None:
     add_trace(document, "step2_simplify", "ok", "Simplified summary generated")
 
 
-def generate_characters(document: dict[str, Any]) -> None:
-    language = document.get("language", "en")
+def _builtin_characters(language: str) -> list[dict[str, str]]:
     if language == "es":
-        characters = [
+        return [
             {
                 "id": "char_guide",
                 "name": "Guia",
                 "description": (
-                    "Persona que explica la noticia con palabras simples."
+                    "Persona que explica la noticia "
+                    "con palabras simples."
                 ),
             },
             {
@@ -59,26 +72,185 @@ def generate_characters(document: dict[str, Any]) -> None:
                 "description": "Adulto que practica lectura y escritura.",
             },
         ]
-    else:
-        characters = [
+    if language == "fr":
+        return [
             {
                 "id": "char_guide",
                 "name": "Guide",
                 "description": (
-                    "Supportive mentor who explains the story in plain words."
+                    "Personne qui explique l'information "
+                    "avec des mots simples."
                 ),
             },
             {
                 "id": "char_learner",
-                "name": "Learner",
+                "name": "Apprenant",
+                "description": "Adulte qui pratique la lecture et l'ecriture.",
+            },
+        ]
+    if language == "de":
+        return [
+            {
+                "id": "char_guide",
+                "name": "Tutor",
                 "description": (
-                    "Adult student practicing reading and writing skills."
+                    "Person, die die Nachricht in "
+                    "einfachen Worten erklaert."
+                ),
+            },
+            {
+                "id": "char_learner",
+                "name": "Lernende",
+                "description": (
+                    "Erwachsene Person, die Lesen "
+                    "und Schreiben uebt."
                 ),
             },
         ]
+    return [
+        {
+            "id": "char_guide",
+            "name": "Guide",
+            "description": (
+                "Supportive mentor who explains "
+                "the story in plain words."
+            ),
+        },
+        {
+            "id": "char_learner",
+            "name": "Learner",
+            "description": (
+                "Adult student practicing "
+                "reading and writing skills."
+            ),
+        },
+    ]
+
+
+def _example_characters(language: str) -> list[dict[str, str]] | None:
+    repo_root = Path(__file__).resolve().parents[1]
+    example_path = repo_root / "examples" / f"{language}_demo.json"
+    if not example_path.exists():
+        return None
+    try:
+        payload = json.loads(example_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    characters = payload.get("characters")
+    if not isinstance(characters, list) or not characters:
+        return None
+    normalized = _normalize_characters(characters)
+    if not normalized:
+        return None
+    return normalized
+
+
+def _normalize_characters(raw: Any) -> list[dict[str, str]]:
+    if not isinstance(raw, list):
+        return []
+
+    normalized: list[dict[str, str]] = []
+    for index, item in enumerate(raw):
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name", "")).strip()
+        description = str(item.get("description", "")).strip()
+        char_id = str(item.get("id", "")).strip()
+        if not name or not description:
+            continue
+        if not char_id:
+            slug = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
+            char_id = f"char_{slug or index + 1}"
+        normalized.append(
+            {
+                "id": char_id,
+                "name": name,
+                "description": description,
+            }
+        )
+        if len(normalized) == 3:
+            break
+
+    return normalized if len(normalized) >= 2 else []
+
+
+def _extract_json_array(raw_text: str) -> list[dict[str, Any]] | None:
+    start = raw_text.find("[")
+    end = raw_text.rfind("]")
+    if start == -1 or end == -1 or end <= start:
+        return None
+    candidate = raw_text[start:end + 1]
+    try:
+        parsed = json.loads(candidate)
+    except json.JSONDecodeError:
+        return None
+    if isinstance(parsed, list):
+        return parsed
+    return None
+
+
+def generate_characters(
+    document: dict[str, Any],
+    enable_model_generation: bool = False,
+    model_repo_id: str = "openbmb/MiniCPM5-1B",
+) -> None:
+    language = document.get("language", "en")
+    fulltext = str(document.get("article", {}).get("fulltext", "")).strip()
+    summary_for_prompt = " ".join(_split_sentences(fulltext)[:3])
+    characters: list[dict[str, str]] = []
+
+    if enable_model_generation and fulltext:
+        try:
+            prompt_text = fulltext
+            if summary_for_prompt:
+                prompt_text = (
+                    f"Article summary seed: {summary_for_prompt}\n"
+                    f"Article full text: {fulltext}"
+                )
+            raw = generate_characters_from_text(
+                fulltext=prompt_text,
+                language=language,
+                model_repo_id=model_repo_id,
+            )
+            extracted = _extract_json_array(raw)
+            if extracted is None:
+                raise TextGenerationError("model output is not a JSON array")
+            characters = _normalize_characters(extracted)
+            if not characters:
+                raise TextGenerationError(
+                    "model output missing 2-3 characters"
+                )
+            add_trace(
+                document,
+                "step3_characters",
+                "ok",
+                f"Characters generated from full text using {model_repo_id}",
+            )
+        except TextGenerationError as exc:
+            fallback = (
+                _example_characters(language)
+                or _builtin_characters(language)
+            )
+            characters = fallback
+            add_trace(
+                document,
+                "step3_characters",
+                "fallback",
+                f"Model character generation failed: {exc}",
+            )
+    else:
+        characters = (
+            _example_characters(language)
+            or _builtin_characters(language)
+        )
+        add_trace(
+            document,
+            "step3_characters",
+            "ok",
+            "Characters loaded from deterministic examples",
+        )
 
     document["characters"] = characters
-    add_trace(document, "step3_characters", "ok", "Characters generated")
 
 
 def _short_line(text: str, limit: int = 72) -> str:
@@ -138,6 +310,101 @@ def _normalized_image_options(
     return options
 
 
+def _apply_image_generation_to_panels(
+    document: dict[str, Any],
+    panels: list[dict[str, Any]],
+    options: dict[str, Any],
+    strict_mode: bool = False,
+) -> dict[str, int]:
+    image_source_counts: dict[str, int] = {}
+    if options["enable_live_images"]:
+        for panel in panels:
+            panel_id = panel.get("panel_id", "")
+            frame_index = int(panel.get("frame_index", 1))
+            render = panel.setdefault("render", {})
+            fallback_path = str(
+                render.get("image_path", f"assets/panel_{frame_index}.png")
+            )
+            panel_seed = options["seed"] + (frame_index - 1)
+            started = perf_counter()
+            add_trace(
+                document,
+                "step4_image_generate",
+                "start",
+                f"{panel_id} generation started",
+            )
+            try:
+                image_path, used_seed, device = generate_panel_image(
+                    prompt=str(panel.get("scene_description", "")),
+                    negative_prompt=options["negative_prompt"],
+                    session_id=document["session_id"],
+                    panel_id=panel_id,
+                    model_repo_id=options["model_repo_id"],
+                    seed=panel_seed,
+                    randomize_seed=options["randomize_seed"],
+                    width=options["width"],
+                    height=options["height"],
+                    guidance_scale=options["guidance_scale"],
+                    num_inference_steps=options["num_inference_steps"],
+                )
+                elapsed_ms = int((perf_counter() - started) * 1000)
+                render["image_path"] = image_path
+                render["image_source"] = "live"
+                image_source_counts["live"] = (
+                    image_source_counts.get("live", 0) + 1
+                )
+                render["seed"] = used_seed
+                render["device"] = device
+                add_trace(
+                    document,
+                    "step4_image_generate",
+                    "ok",
+                    f"{panel_id} live image generated in {elapsed_ms}ms",
+                )
+            except ImageGenerationError as exc:
+                elapsed_ms = int((perf_counter() - started) * 1000)
+                if strict_mode:
+                    raise ModelPipelineError(
+                        f"image generation failed for {panel_id}: {exc}"
+                    ) from exc
+                render["image_path"] = fallback_path
+                render["image_source"] = "fallback"
+                image_source_counts["fallback"] = (
+                    image_source_counts.get("fallback", 0) + 1
+                )
+                render["seed"] = panel_seed
+                add_trace(
+                    document,
+                    "step4_image_generate",
+                    "fallback",
+                    f"{panel_id} fallback after {elapsed_ms}ms: {exc}",
+                )
+    else:
+        for panel in panels:
+            render = panel.setdefault("render", {})
+            frame_index = int(panel.get("frame_index", 1))
+            render.setdefault("image_path", f"assets/panel_{frame_index}.png")
+            render["image_source"] = "deterministic"
+            image_source_counts["deterministic"] = (
+                image_source_counts.get("deterministic", 0) + 1
+            )
+
+    summary_bits = [
+        f"{key}={value}"
+        for key, value in image_source_counts.items()
+    ]
+    add_trace(
+        document,
+        "step4_panels",
+        "ok",
+        (
+            f"Generated {len(panels)} comic panels"
+            f" ({', '.join(summary_bits)})"
+        ),
+    )
+    return image_source_counts
+
+
 def generate_panels(
     document: dict[str, Any],
     panel_count: int = 3,
@@ -186,65 +453,128 @@ def generate_panels(
             }
         )
 
-    if options["enable_live_images"]:
-        for panel in panels:
-            panel_id = panel["panel_id"]
-            fallback_path = panel["render"]["image_path"]
-            panel_seed = options["seed"] + (panel["frame_index"] - 1)
-            started = perf_counter()
-            add_trace(
-                document,
-                "step4_image_generate",
-                "start",
-                f"{panel_id} generation started",
-            )
-            try:
-                image_path, used_seed, device = generate_panel_image(
-                    prompt=panel["scene_description"],
-                    negative_prompt=options["negative_prompt"],
-                    session_id=document["session_id"],
-                    panel_id=panel_id,
-                    model_repo_id=options["model_repo_id"],
-                    seed=panel_seed,
-                    randomize_seed=options["randomize_seed"],
-                    width=options["width"],
-                    height=options["height"],
-                    guidance_scale=options["guidance_scale"],
-                    num_inference_steps=options["num_inference_steps"],
-                )
-                elapsed_ms = int((perf_counter() - started) * 1000)
-                panel["render"]["image_path"] = image_path
-                panel["render"]["image_source"] = "live"
-                panel["render"]["seed"] = used_seed
-                panel["render"]["device"] = device
-                add_trace(
-                    document,
-                    "step4_image_generate",
-                    "ok",
-                    f"{panel_id} live image generated in {elapsed_ms}ms",
-                )
-            except ImageGenerationError as exc:
-                elapsed_ms = int((perf_counter() - started) * 1000)
-                panel["render"]["image_path"] = fallback_path
-                panel["render"]["image_source"] = "fallback"
-                panel["render"]["seed"] = panel_seed
-                add_trace(
-                    document,
-                    "step4_image_generate",
-                    "fallback",
-                    f"{panel_id} fallback after {elapsed_ms}ms: {exc}",
-                )
-    else:
-        for panel in panels:
-            panel["render"]["image_source"] = "deterministic"
-
     document["panels"] = panels
+    _apply_image_generation_to_panels(document, panels, options)
+
+
+def _deterministic_pipeline(
+    document: dict[str, Any],
+    panel_count: int,
+) -> None:
+    simplify_article(document)
+    generate_characters(document, enable_model_generation=False)
+    generate_panels(
+        document,
+        panel_count=panel_count,
+        image_options={"enable_live_images": False},
+    )
+    apply_overlay(document)
+    exercise.generate_exercises(document)
+
+
+def _normalize_model_fields(
+    generated: dict[str, Any],
+) -> tuple[
+    dict[str, Any],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+]:
+    simplified = generated.get("simplified")
+    characters = generated.get("characters")
+    panels = generated.get("panels")
+    exercises_data = generated.get("exercises")
+    if not isinstance(simplified, dict):
+        raise ModelPipelineError("model payload missing simplified")
+    if not isinstance(characters, list):
+        raise ModelPipelineError("model payload missing characters")
+    if not isinstance(panels, list):
+        raise ModelPipelineError("model payload missing panels")
+    if not isinstance(exercises_data, list):
+        raise ModelPipelineError("model payload missing exercises")
+    return simplified, characters, panels, exercises_data
+
+
+def generate_story_pipeline(
+    document: dict[str, Any],
+    panel_count: int,
+    enable_model_generation: bool,
+    text_model_repo_id: str,
+    image_options: dict[str, Any] | None = None,
+) -> None:
+    if not enable_model_generation:
+        add_trace(
+            document,
+            "model_pipeline",
+            "ok",
+            "Model mode disabled, using deterministic pipeline",
+        )
+        _deterministic_pipeline(document, panel_count=panel_count)
+        return
+
+    options = _normalized_image_options(image_options)
+    options["enable_live_images"] = True
     add_trace(
         document,
-        "step4_panels",
-        "ok",
-        f"Generated {len(panels)} comic panels",
+        "model_pipeline",
+        "start",
+        "Unified model pipeline started (text + image)",
     )
+    try:
+        generated = generate_session_fields_from_article(
+            language=str(document.get("language", "en")),
+            style_id=str(document.get("style_id", "minimal")),
+            article=document.get("article", {}),
+            panel_count=panel_count,
+            model_repo_id=text_model_repo_id,
+        )
+        (
+            simplified,
+            characters,
+            panels,
+            exercises_data,
+        ) = _normalize_model_fields(generated)
+        document["simplified"] = simplified
+        document["characters"] = characters
+        document["panels"] = panels
+        document["exercises"] = exercises_data
+        add_trace(
+            document,
+            "model_pipeline",
+            "ok",
+            f"Model text fields generated using {text_model_repo_id}",
+        )
+        _apply_image_generation_to_panels(
+            document,
+            document["panels"],
+            options,
+            strict_mode=True,
+        )
+        apply_overlay(document)
+        add_trace(
+            document,
+            "step6_exercises",
+            "ok",
+            f"Loaded {len(document.get('exercises', []))} model exercises",
+        )
+        add_trace(
+            document,
+            "model_pipeline",
+            "ok",
+            "Unified model pipeline completed",
+        )
+    except (
+        UnifiedGenerationError,
+        TextGenerationError,
+        ModelPipelineError,
+    ) as exc:
+        add_trace(
+            document,
+            "model_pipeline",
+            "fallback",
+            f"Model pipeline failed, switching to deterministic: {exc}",
+        )
+        _deterministic_pipeline(document, panel_count=panel_count)
 
 
 def apply_overlay(document: dict[str, Any]) -> None:

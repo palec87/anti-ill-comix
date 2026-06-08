@@ -5,6 +5,7 @@ from . import (
     image_backend,
     prompts,
     session,
+    text_backend,
     trace,
 )
 from .models import ValidationError, validate_session_document
@@ -16,6 +17,7 @@ __all__ = [
     "image_backend",
     "prompts",
     "session",
+    "text_backend",
     "trace",
     "ValidationError",
     "validate_session_document",
