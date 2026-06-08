@@ -473,6 +473,7 @@ def _normalize_exercises(
 
 
 def generate_session_fields_from_article(
+    document: dict[str, Any],
     language: str,
     style_id: str,
     article: dict[str, Any],
@@ -508,6 +509,20 @@ def generate_session_fields_from_article(
 
     if not isinstance(raw_text, str) or not raw_text.strip():
         raise UnifiedGenerationError("invalid model output text")
+
+    from .trace import add_trace
+    add_trace(
+        document,
+        "text_generation_output",
+        "ok",
+        f"Unified session generation backend={backend_mode}",
+    )
+    add_trace(
+        document,
+        "text_generation_output",
+        "ok",
+        f"Unified session generation output={raw_text}",
+    )
 
     payload = _extract_json_object(raw_text)
     simplified = _normalize_simplified(payload.get("simplified"))

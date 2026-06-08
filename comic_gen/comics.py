@@ -450,6 +450,7 @@ def generate_story_pipeline(
     )
     try:
         generated = generate_session_fields_from_article(
+            document=document,
             language=str(document.get("language", "en")),
             style_id=str(document.get("style_id", "minimal")),
             article=document.get("article", {}),
