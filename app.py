@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import html
+import logging
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -10,6 +11,9 @@ import gradio as gr
 
 from comic_gen import backends, comics, exercise, session, trace
 from comic_gen.models import ValidationError
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 LANGUAGE_OPTIONS = {
     "English": "en",
@@ -46,12 +50,6 @@ def _render_summary(document: dict[str, Any]) -> str:
         f"{simplified['summary']}\n\n"
         f"Keywords: {keywords}"
     )
-
-
-# def _bubble_html(line: dict[str, str]) -> str:
-#     char_id = html.escape(line["character_id"])
-#     text = html.escape(line["text"])
-#     return f"<div class='bubble'><b>{char_id}</b>: {text}</div>"
 
 
 def _fallback_image_src(panel: dict[str, Any]) -> str:

@@ -138,7 +138,6 @@ def generate_characters(
                     f"Article full text: {fulltext}"
                 )
             raw = generate_characters_from_text(
-                document=document,
                 fulltext=prompt_text,
                 language=language,
                 model_repo_id=model_repo_id,
@@ -450,7 +449,6 @@ def generate_story_pipeline(
     )
     try:
         generated = generate_session_fields_from_article(
-            document=document,
             language=str(document.get("language", "en")),
             style_id=str(document.get("style_id", "minimal")),
             article=document.get("article", {}),

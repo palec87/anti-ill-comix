@@ -2,10 +2,14 @@ from __future__ import annotations
 
 import json
 import re
+import logging
 from typing import Any
 
 from .trace import add_trace
 from .prompts import UNIFIED_SESSION_PROMPT
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 _GENERATOR: Any | None = None
 _GENERATOR_MODEL_ID = ""
@@ -218,7 +222,6 @@ def _generate_text(
 
 
 def generate_characters_from_text(
-    document: dict[str, Any],
     fulltext: str,
     language: str,
     model_repo_id: str,
@@ -244,12 +247,7 @@ def generate_characters_from_text(
             do_sample=False,
             temperature=0.1,
         )
-        add_trace(
-            document,
-            "text_generation_output",
-            "ok",
-            f"Text generation backend={backend_mode}",
-        )
+        logger.info(f"Generated characters text in {backend_mode}: {generated}")
     except Exception as exc:
         raise TextGenerationError("text generation failed") from exc
     return generated
@@ -473,7 +471,6 @@ def _normalize_exercises(
 
 
 def generate_session_fields_from_article(
-    document: dict[str, Any],
     language: str,
     style_id: str,
     article: dict[str, Any],
@@ -510,21 +507,9 @@ def generate_session_fields_from_article(
     if not isinstance(raw_text, str) or not raw_text.strip():
         raise UnifiedGenerationError("invalid model output text")
 
-    from .trace import add_trace
-    add_trace(
-        document,
-        "text_generation_output",
-        "ok",
-        f"Unified session generation backend={backend_mode}",
-    )
-    add_trace(
-        document,
-        "text_generation_output",
-        "ok",
-        f"Unified session generation output={raw_text}",
-    )
-
+    logger.info(f"Generated unified session text in {backend_mode}: {raw_text}")
     payload = _extract_json_object(raw_text)
+    logger.info(f"Extracted JSON payload for unified session: {payload}")
     simplified = _normalize_simplified(payload.get("simplified"))
     characters = _normalize_characters(payload.get("characters"))
     panels = _normalize_panels(payload.get("panels"), target_count)
