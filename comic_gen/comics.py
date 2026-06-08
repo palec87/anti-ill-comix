@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import re
+from time import perf_counter
 from typing import Any
 
+from .image_backend import ImageGenerationError, MAX_SEED, generate_panel_image
 from .trace import add_trace
 
 STYLE_SCENE_HINTS = {
@@ -87,8 +89,62 @@ def _short_line(text: str, limit: int = 72) -> str:
     return f"{trimmed}..."
 
 
-def generate_panels(document: dict[str, Any], panel_count: int = 3) -> None:
+def _default_image_options() -> dict[str, Any]:
+    return {
+        "enable_live_images": False,
+        "model_repo_id": "stabilityai/sdxl-turbo",
+        "negative_prompt": "",
+        "seed": 0,
+        "randomize_seed": True,
+        "width": 256,
+        "height": 256,
+        "guidance_scale": 0.0,
+        "num_inference_steps": 2,
+    }
+
+
+def _clamp_dimension(value: Any) -> int:
+    try:
+        v = int(value)
+    except (TypeError, ValueError):
+        v = 256
+    v = max(256, min(512, v))
+    return v - (v % 32)
+
+
+def _normalized_image_options(
+    image_options: dict[str, Any] | None,
+) -> dict[str, Any]:
+    options = _default_image_options()
+    if image_options:
+        options.update(image_options)
+
+    options["width"] = _clamp_dimension(options.get("width", 256))
+    options["height"] = _clamp_dimension(options.get("height", 256))
+    options["seed"] = max(0, min(MAX_SEED, int(options.get("seed", 0))))
+    options["num_inference_steps"] = max(
+        1,
+        min(50, int(options.get("num_inference_steps", 2))),
+    )
+    options["guidance_scale"] = float(options.get("guidance_scale", 0.0))
+    options["enable_live_images"] = bool(
+        options.get("enable_live_images", False)
+    )
+    options["randomize_seed"] = bool(options.get("randomize_seed", True))
+    options["model_repo_id"] = str(
+        options.get("model_repo_id", "stabilityai/sdxl-turbo")
+    )
+    options["negative_prompt"] = str(options.get("negative_prompt", ""))
+    return options
+
+
+def generate_panels(
+    document: dict[str, Any],
+    panel_count: int = 3,
+    image_options: dict[str, Any] | None = None,
+) -> None:
     panel_count = max(3, min(5, panel_count))
+    options = _normalized_image_options(image_options)
     summary_sentences = _split_sentences(document["simplified"]["summary"])
     style_id = document.get("style_id", "minimal")
     style_hint = STYLE_SCENE_HINTS.get(style_id, STYLE_SCENE_HINTS["minimal"])
@@ -105,6 +161,7 @@ def generate_panels(document: dict[str, Any], panel_count: int = 3) -> None:
         )
 
         panel_id = f"panel_{idx + 1}"
+        fallback_path = f"assets/panel_{idx + 1}.png"
         panels.append(
             {
                 "panel_id": panel_id,
@@ -123,11 +180,63 @@ def generate_panels(document: dict[str, Any], panel_count: int = 3) -> None:
                     {"bbox_px": [30, 140, 300, 90]},
                 ],
                 "render": {
-                    "image_path": f"assets/panel_{idx + 1}.png",
-                    "overlay_applied": True,
+                    "image_path": fallback_path,
+                    "overlay_applied": False,
                 },
             }
         )
+
+    if options["enable_live_images"]:
+        for panel in panels:
+            panel_id = panel["panel_id"]
+            fallback_path = panel["render"]["image_path"]
+            panel_seed = options["seed"] + (panel["frame_index"] - 1)
+            started = perf_counter()
+            add_trace(
+                document,
+                "step4_image_generate",
+                "start",
+                f"{panel_id} generation started",
+            )
+            try:
+                image_path, used_seed, device = generate_panel_image(
+                    prompt=panel["scene_description"],
+                    negative_prompt=options["negative_prompt"],
+                    session_id=document["session_id"],
+                    panel_id=panel_id,
+                    model_repo_id=options["model_repo_id"],
+                    seed=panel_seed,
+                    randomize_seed=options["randomize_seed"],
+                    width=options["width"],
+                    height=options["height"],
+                    guidance_scale=options["guidance_scale"],
+                    num_inference_steps=options["num_inference_steps"],
+                )
+                elapsed_ms = int((perf_counter() - started) * 1000)
+                panel["render"]["image_path"] = image_path
+                panel["render"]["image_source"] = "live"
+                panel["render"]["seed"] = used_seed
+                panel["render"]["device"] = device
+                add_trace(
+                    document,
+                    "step4_image_generate",
+                    "ok",
+                    f"{panel_id} live image generated in {elapsed_ms}ms",
+                )
+            except ImageGenerationError as exc:
+                elapsed_ms = int((perf_counter() - started) * 1000)
+                panel["render"]["image_path"] = fallback_path
+                panel["render"]["image_source"] = "fallback"
+                panel["render"]["seed"] = panel_seed
+                add_trace(
+                    document,
+                    "step4_image_generate",
+                    "fallback",
+                    f"{panel_id} fallback after {elapsed_ms}ms: {exc}",
+                )
+    else:
+        for panel in panels:
+            panel["render"]["image_source"] = "deterministic"
 
     document["panels"] = panels
     add_trace(
@@ -139,7 +248,9 @@ def generate_panels(document: dict[str, Any], panel_count: int = 3) -> None:
 
 
 def apply_overlay(document: dict[str, Any]) -> None:
-    # Deterministic MVP keeps overlay data in JSON for predictable replay.
+    # Phase 1 keeps overlay in the UI layer; preserve schema flag consistency.
+    for panel in document.get("panels", []):
+        panel.setdefault("render", {})["overlay_applied"] = True
     add_trace(
         document,
         "step5_overlay",
