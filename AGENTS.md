@@ -73,7 +73,9 @@ UI Agent: render comic panels, Merge image layer with text, click-through exerci
 QA/Evaluation Agent: validate factual consistency, readability, position of the text in respect to the images, safety, and exercise quality.
 
 ## Quality and Safety Rules
-Use minimum amount of text to make the application accessible to low literacy audience.
+Use minimum amount of text to make the application accessible to low literacy audience. Prefer emojis or text accompanied by emojis.
+
+All methods should contain docstrings in the google style.
 
 Use age-appropriate neutral language, avoid harmful content, keep summaries factual, preserve key context, and include source attribution with a html link under the comic strip.
 

@@ -4,6 +4,7 @@ import base64
 import html
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 import gradio as gr
 
@@ -20,7 +21,8 @@ LANGUAGE_OPTIONS = {
 STYLE_OPTIONS = ["minimal", "newspaper", "watercolor", "retro"]
 MAX_SEED = 2**31 - 1
 MAX_IMAGE_SIZE = 512
-DEFAULT_MODEL_REPO_ID = "stabilityai/sdxl-turbo"
+DEFAULT_IMAGE_MODEL_ID = "stabilityai/sdxl-turbo"
+DEFAULT_OPENBMB_TEXT_MODEL_ID = "openbmb/MiniCPM5-1B"
 
 
 def _render_source(document: dict[str, Any]) -> str:
@@ -51,35 +53,130 @@ def _bubble_html(line: dict[str, str]) -> str:
     return f"<div class='bubble'><b>{char_id}</b>: {text}</div>"
 
 
-def _panel_image_html(panel: dict[str, Any]) -> str:
+def _fallback_image_src(panel: dict[str, Any]) -> str:
+    frame_index = panel.get("frame_index", "?")
+    scene = html.escape(panel.get("scene_description", "Comic panel"))
+    scene = scene[:110]
+    svg_lines = [
+        (
+            '<svg xmlns="http://www.w3.org/2000/svg" '
+            'width="512" height="512" viewBox="0 0 512 512">'
+        ),
+        '  <defs>',
+        '    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">',
+        '      <stop offset="0%" stop-color="#fff7e8"/>',
+        '      <stop offset="100%" stop-color="#eef4ff"/>',
+        '    </linearGradient>',
+        '  </defs>',
+        '  <rect width="512" height="512" rx="28" fill="url(#bg)"/>',
+        (
+            '  <rect x="24" y="24" width="464" height="464" '
+            'rx="24" fill="none" stroke="#c5cfdb" stroke-width="3"/>'
+        ),
+        (
+            '  <text x="40" y="72" font-size="22" '
+            'font-family="Arial, sans-serif" fill="#415166">'
+            f'Panel {frame_index}</text>'
+        ),
+        (
+            '  <text x="40" y="120" font-size="16" '
+            'font-family="Arial, sans-serif" fill="#5f6f82">'
+            f'{scene}</text>'
+        ),
+        '  <circle cx="150" cy="270" r="54" fill="#d8e4f2"/>',
+        '  <circle cx="344" cy="270" r="54" fill="#f2dec7"/>',
+        (
+            '  <rect x="106" y="334" width="88" height="108" '
+            'rx="22" fill="#d8e4f2"/>'
+        ),
+        (
+            '  <rect x="300" y="334" width="88" height="108" '
+            'rx="22" fill="#f2dec7"/>'
+        ),
+        (
+            '  <path d="M88 180h160a18 18 0 0 1 18 18v48a18 18 '
+            '0 0 1-18 18h-90l-34 24 10-24H88a18 18 0 0 1-18-18v-48'
+            'a18 18 0 0 1 18-18z" fill="#ffffff" stroke="#9ba6b2" '
+            'stroke-width="3"/>'
+        ),
+        (
+            '  <path d="M264 120h160a18 18 0 0 1 18 18v48a18 18 '
+            '0 0 1-18 18h-84l-34 24 10-24h-52a18 18 0 0 1-18-18v-48'
+            'a18 18 0 0 1 18-18z" fill="#ffffff" stroke="#9ba6b2" '
+            'stroke-width="3"/>'
+        ),
+        '</svg>',
+    ]
+    svg = "\n".join(svg_lines)
+    return "data:image/svg+xml;utf8," + quote(svg)
+
+
+def _panel_image_src(panel: dict[str, Any]) -> tuple[str, str]:
     render = panel.get("render", {})
     image_path = render.get("image_path")
-    if not image_path:
-        return ""
+    source_label = html.escape(render.get("image_source", "deterministic"))
+    if image_path:
+        path = Path(image_path)
+        if path.exists() and path.is_file():
+            try:
+                encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+                return f"data:image/png;base64,{encoded}", source_label
+            except OSError:
+                pass
 
-    path = Path(image_path)
-    if not path.exists() or not path.is_file():
-        return ""
+    return _fallback_image_src(panel), "placeholder"
 
-    try:
-        encoded = base64.b64encode(path.read_bytes()).decode("ascii")
-    except OSError:
-        return ""
 
-    source_label = html.escape(render.get("image_source", "unknown"))
+def _panel_image_html(panel: dict[str, Any]) -> str:
+    image_src, source_label = _panel_image_src(panel)
     image_tag = (
-        "<img src='data:image/png;base64,"
-        f"{encoded}' alt='Panel {panel['frame_index']}' class='panel-image'/>"
+        "<img src='"
+        f"{image_src}' alt='Panel {panel['frame_index']}' "
+        "class='panel-image'/>"
     )
     return (
         "<div class='panel-media'>"
         f"{image_tag}"
-        f"<div class='image-meta'>image: {source_label}</div>"
+        # f"<div class='image-meta'>image: {source_label}</div>"
         "</div>"
     )
 
 
-def _render_panels_html(document: dict[str, Any]) -> str:
+def _overlay_debug_html(panel: dict[str, Any]) -> str:
+    width = 512
+    height = 512
+    parts = [
+        "<div class='overlay-debug'>",
+        "<div class='overlay-canvas'>",
+    ]
+    dialogue = panel.get("dialogue", [])
+    for index, bubble in enumerate(panel.get("bubbles", [])):
+        bbox = bubble.get("bbox_px", [0, 0, 120, 60])
+        x, y, box_w, box_h = bbox
+        line = dialogue[index] if index < len(dialogue) else {}
+        char_id = html.escape(line.get("character_id", "narrator"))
+        text = html.escape(line.get("text", ""))
+        left = max(0.0, min(100.0, (x / width) * 100))
+        top = max(0.0, min(100.0, (y / height) * 100))
+        bubble_w = max(8.0, min(100.0 - left, (box_w / width) * 100))
+        bubble_h = max(8.0, min(100.0 - top, (box_h / height) * 100))
+        parts.append(
+            "<div class='overlay-bubble' "
+            f"style='left:{left:.2f}%;top:{top:.2f}%;"
+            f"width:{bubble_w:.2f}%;height:{bubble_h:.2f}%;'>"
+            f"<div class='overlay-speaker'>{char_id}</div>"
+            f"<div class='overlay-line'>{text}</div>"
+            "</div>"
+        )
+    parts.append("</div>")
+    parts.append("</div>")
+    return "".join(parts)
+
+
+def _render_panels_html(
+    document: dict[str, Any],
+    debug_mode: bool = False,
+) -> str:
     cards = []
     for panel in document.get("panels", []):
         image_html = _panel_image_html(panel)
@@ -89,13 +186,33 @@ def _render_panels_html(document: dict[str, Any]) -> str:
                 for line in panel.get("dialogue", [])
             ]
         )
+        if debug_mode:
+            cards.append(
+                (
+                    "<div class='panel-card debug-card'>"
+                    f"<h4>Panel {panel['frame_index']}</h4>"
+                    "<div class='debug-row'>"
+                    "<div class='debug-label'>Raw image</div>"
+                    f"{image_html}"
+                    "</div>"
+                    "<div class='debug-row'>"
+                    "<div class='debug-label'>Overlay preview</div>"
+                    f"{_overlay_debug_html(panel)}"
+                    "</div>"
+                    # f"<p>{html.escape(panel['scene_description'])}</p>"
+                    # f"{dialogue_html}"
+                    "</div>"
+                )
+            )
+            continue
+
         cards.append(
             (
                 "<div class='panel-card'>"
-                f"<h4>Panel {panel['frame_index']}</h4>"
+                # f"<h4>Panel {panel['frame_index']}</h4>"
                 f"{image_html}"
-                f"<p>{html.escape(panel['scene_description'])}</p>"
-                f"{dialogue_html}"
+                # f"<p>{html.escape(panel['scene_description'])}</p>"
+                # f"{dialogue_html}"
                 "</div>"
             )
         )
@@ -129,10 +246,12 @@ def generate_strip(
     height: int,
     guidance_scale: float,
     num_inference_steps: int,
+    debug_mode: bool,
 ) -> tuple[dict[str, Any], str, str, str, str, list[str], str, dict[str, Any]]:
     language = LANGUAGE_OPTIONS.get(language_label, "en")
     payload = backends.fetch_article(language, use_live_feed=use_live_feed)
     document = session.build_base_session(language, style_id, payload)
+    document.setdefault("ui", {})["debug_mode"] = debug_mode
 
     try:
         comics.simplify_article(document)
@@ -142,7 +261,7 @@ def generate_strip(
             panel_count=panel_count,
             image_options={
                 "enable_live_images": enable_live_images,
-                "model_repo_id": DEFAULT_MODEL_REPO_ID,
+                "model_repo_id": DEFAULT_IMAGE_MODEL_ID,
                 "negative_prompt": negative_prompt,
                 "seed": seed,
                 "randomize_seed": randomize_seed,
@@ -172,7 +291,7 @@ def generate_strip(
         document,
         _render_source(document),
         _render_summary(document),
-        _render_panels_html(document),
+        _render_panels_html(document, debug_mode=debug_mode),
         _render_transcript(document),
         choices,
         first_panel,
@@ -193,6 +312,7 @@ def generate_strip_ui(
     height: int,
     guidance_scale: float,
     num_inference_steps: int,
+    debug_mode: bool,
     progress: gr.Progress = gr.Progress(track_tqdm=True),
 ) -> tuple[dict[str, Any], str, str, str, str, gr.Dropdown, dict[str, Any]]:
     progress(0.05, desc="Fetching article")
@@ -218,6 +338,7 @@ def generate_strip_ui(
         height,
         guidance_scale,
         num_inference_steps,
+        debug_mode,
     )
     progress(1.0, desc="Comic strip ready")
 
@@ -271,46 +392,7 @@ def submit_answer(
     return feedback
 
 
-css = """
-#app {
-  max-width: 1100px;
-  margin: 0 auto;
-}
-.panel-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 12px;
-}
-.panel-card {
-  border: 1px solid #d5d7de;
-  border-radius: 12px;
-  padding: 12px;
-  background: linear-gradient(180deg, #fffaf1, #f2f7ff);
-}
-.panel-media {
-    margin-bottom: 8px;
-}
-.panel-image {
-    width: 100%;
-    border-radius: 10px;
-    border: 1px solid #d5d7de;
-    display: block;
-}
-.image-meta {
-    font-size: 12px;
-    color: #4e5965;
-    margin-top: 4px;
-}
-.bubble {
-  margin: 8px 0;
-  padding: 8px;
-  border-radius: 10px;
-  background: #ffffff;
-  border: 1px dashed #9ba6b2;
-}
-"""
-
-with gr.Blocks(css=css) as demo:
+with gr.Blocks() as demo:
     session_state = gr.State({})
 
     with gr.Column(elem_id="app"):
@@ -348,6 +430,10 @@ with gr.Blocks(css=css) as demo:
         with gr.Accordion("Image Generation (Optional)", open=False):
             enable_live_images = gr.Checkbox(
                 label="Enable live panel image generation",
+                value=False,
+            )
+            debug_mode_input = gr.Checkbox(
+                label="Debug panel rendering",
                 value=False,
             )
             negative_prompt_input = gr.Textbox(
@@ -437,6 +523,7 @@ with gr.Blocks(css=css) as demo:
             height_input,
             guidance_scale_input,
             num_steps_input,
+            debug_mode_input,
         ],
         outputs=[
             session_state,
@@ -463,4 +550,9 @@ with gr.Blocks(css=css) as demo:
 
 
 if __name__ == "__main__":
-    demo.launch()
+    css_path = Path(__file__).parent / "assets" / "style.css"
+    css = ""
+    if css_path.exists():
+        css = css_path.read_text()
+
+    demo.launch(css=css)

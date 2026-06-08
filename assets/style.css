@@ -1,0 +1,103 @@
+:root {
+  font-family: "Inter", sans-serif;
+  background-color: #f9f9f9;
+  color: #24313f;
+}
+
+#app {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+.panel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+.panel-card {
+  border: 1px solid #d5d7de;
+  border-radius: 12px;
+  padding: 12px;
+  background: linear-gradient(180deg, #fffaf1, #f2f7ff);
+}
+.panel-media {
+    margin-bottom: 8px;
+}
+.panel-image {
+    width: 100%;
+    border-radius: 10px;
+    border: 1px solid #d5d7de;
+    display: block;
+}
+.image-meta {
+    font-size: 12px;
+    color: #4e5965;
+    margin-top: 4px;
+}
+.debug-card {
+    border-color: #e6a23c;
+}
+.debug-row {
+    margin-bottom: 12px;
+    padding: 10px;
+    border-radius: 10px;
+    background: #fffdf7;
+    border: 1px solid #ecd8b0;
+}
+.debug-label {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #7a5a18;
+    margin-bottom: 6px;
+}
+.overlay-debug {
+    width: 100%;
+}
+.overlay-canvas {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: 10px;
+    border: 1px dashed #9ba6b2;
+    background:
+        linear-gradient(180deg, rgba(255,255,255,0.9), rgba(242,247,255,0.95)),
+        repeating-linear-gradient(
+            0deg,
+            transparent,
+            transparent 31px,
+            rgba(155,166,178,0.15) 32px
+        ),
+        repeating-linear-gradient(
+            90deg,
+            transparent,
+            transparent 31px,
+            rgba(155,166,178,0.15) 32px
+        );
+}
+.overlay-bubble {
+    position: absolute;
+    overflow: hidden;
+    padding: 6px;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.92);
+    border: 2px solid #5b9bd5;
+    box-sizing: border-box;
+}
+.overlay-speaker {
+    font-size: 10px;
+    font-weight: 700;
+    color: #2c5d8a;
+    margin-bottom: 4px;
+}
+.overlay-line {
+    font-size: 11px;
+    line-height: 1.2;
+    color: #24313f;
+}
+.bubble {
+  margin: 8px 0;
+  padding: 8px;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px dashed #9ba6b2;
+}
