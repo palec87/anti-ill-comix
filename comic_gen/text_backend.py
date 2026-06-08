@@ -4,6 +4,7 @@ import json
 import re
 from typing import Any
 
+from .trace import add_trace
 from .prompts import UNIFIED_SESSION_PROMPT
 
 _GENERATOR: Any | None = None
@@ -51,6 +52,7 @@ def _get_generator(model_repo_id: str) -> Any:
 
 
 def generate_characters_from_text(
+    document: dict[str, Any],
     fulltext: str,
     language: str,
     model_repo_id: str,
@@ -74,6 +76,12 @@ def generate_characters_from_text(
             do_sample=False,
             temperature=0.1,
             return_full_text=False,
+        )
+        add_trace(
+            document,
+            "text_generation_output",
+            "ok",
+            f"Text generation output: {outputs}",
         )
     except Exception as exc:
         raise TextGenerationError("text generation failed") from exc

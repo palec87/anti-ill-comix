@@ -47,10 +47,10 @@ def _render_summary(document: dict[str, Any]) -> str:
     )
 
 
-def _bubble_html(line: dict[str, str]) -> str:
-    char_id = html.escape(line["character_id"])
-    text = html.escape(line["text"])
-    return f"<div class='bubble'><b>{char_id}</b>: {text}</div>"
+# def _bubble_html(line: dict[str, str]) -> str:
+#     char_id = html.escape(line["character_id"])
+#     text = html.escape(line["text"])
+#     return f"<div class='bubble'><b>{char_id}</b>: {text}</div>"
 
 
 def _fallback_image_src(panel: dict[str, Any]) -> str:
@@ -192,8 +192,6 @@ def _render_panels_html(
                     "<div class='debug-label'>Overlay preview</div>"
                     f"{_overlay_debug_html(panel)}"
                     "</div>"
-                    # f"<p>{html.escape(panel['scene_description'])}</p>"
-                    # f"{dialogue_html}"
                     "</div>"
                 )
             )
@@ -202,10 +200,7 @@ def _render_panels_html(
         cards.append(
             (
                 "<div class='panel-card'>"
-                # f"<h4>Panel {panel['frame_index']}</h4>"
                 f"{image_html}"
-                # f"<p>{html.escape(panel['scene_description'])}</p>"
-                # f"{dialogue_html}"
                 "</div>"
             )
         )
@@ -269,6 +264,8 @@ def generate_strip(
             "ok",
             "Selectors and panel routes prepared",
         )
+        trace.add_trace(document, "text_generation_output_test", 'ok',
+                        f'Text generation output trace test: {language}')
         session.validate_or_raise(document)
     except ValidationError as exc:
         trace.add_trace(document, "validation", "error", str(exc))

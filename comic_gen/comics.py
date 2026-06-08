@@ -55,78 +55,6 @@ def simplify_article(document: dict[str, Any]) -> None:
     add_trace(document, "step2_simplify", "ok", "Simplified summary generated")
 
 
-def _builtin_characters(language: str) -> list[dict[str, str]]:
-    if language == "es":
-        return [
-            {
-                "id": "char_guide",
-                "name": "Guia",
-                "description": (
-                    "Persona que explica la noticia "
-                    "con palabras simples."
-                ),
-            },
-            {
-                "id": "char_learner",
-                "name": "Estudiante",
-                "description": "Adulto que practica lectura y escritura.",
-            },
-        ]
-    if language == "fr":
-        return [
-            {
-                "id": "char_guide",
-                "name": "Guide",
-                "description": (
-                    "Personne qui explique l'information "
-                    "avec des mots simples."
-                ),
-            },
-            {
-                "id": "char_learner",
-                "name": "Apprenant",
-                "description": "Adulte qui pratique la lecture et l'ecriture.",
-            },
-        ]
-    if language == "de":
-        return [
-            {
-                "id": "char_guide",
-                "name": "Tutor",
-                "description": (
-                    "Person, die die Nachricht in "
-                    "einfachen Worten erklaert."
-                ),
-            },
-            {
-                "id": "char_learner",
-                "name": "Lernende",
-                "description": (
-                    "Erwachsene Person, die Lesen "
-                    "und Schreiben uebt."
-                ),
-            },
-        ]
-    return [
-        {
-            "id": "char_guide",
-            "name": "Guide",
-            "description": (
-                "Supportive mentor who explains "
-                "the story in plain words."
-            ),
-        },
-        {
-            "id": "char_learner",
-            "name": "Learner",
-            "description": (
-                "Adult student practicing "
-                "reading and writing skills."
-            ),
-        },
-    ]
-
-
 def _example_characters(language: str) -> list[dict[str, str]] | None:
     repo_root = Path(__file__).resolve().parents[1]
     example_path = repo_root / "examples" / f"{language}_demo.json"
@@ -208,6 +136,7 @@ def generate_characters(
                     f"Article full text: {fulltext}"
                 )
             raw = generate_characters_from_text(
+                document=document,
                 fulltext=prompt_text,
                 language=language,
                 model_repo_id=model_repo_id,
@@ -227,10 +156,7 @@ def generate_characters(
                 f"Characters generated from full text using {model_repo_id}",
             )
         except TextGenerationError as exc:
-            fallback = (
-                _example_characters(language)
-                or _builtin_characters(language)
-            )
+            fallback = _example_characters(language)
             characters = fallback
             add_trace(
                 document,
@@ -239,10 +165,7 @@ def generate_characters(
                 f"Model character generation failed: {exc}",
             )
     else:
-        characters = (
-            _example_characters(language)
-            or _builtin_characters(language)
-        )
+        characters = _example_characters(language)
         add_trace(
             document,
             "step3_characters",
@@ -335,6 +258,7 @@ def _apply_image_generation_to_panels(
             )
             try:
                 image_path, used_seed, device = generate_panel_image(
+                    document=document,
                     prompt=str(panel.get("scene_description", "")),
                     negative_prompt=options["negative_prompt"],
                     session_id=document["session_id"],

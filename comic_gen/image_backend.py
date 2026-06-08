@@ -5,6 +5,8 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from .trace import add_trace
+
 MAX_SEED = 2**31 - 1
 
 _PIPELINE: Any | None = None
@@ -54,6 +56,7 @@ def _get_pipeline(model_repo_id: str) -> tuple[Any, Any, str]:
 
 def generate_panel_image(
     *,
+    document: dict[str, Any],
     prompt: str,
     negative_prompt: str,
     session_id: str,
@@ -81,7 +84,14 @@ def generate_panel_image(
             height=height,
             generator=generator,
         ).images[0]
+
     except Exception as exc:
+        add_trace(
+            document,
+            "step4_image_generate",
+            "error",
+            f"Inference failed for {panel_id}: {exc}",
+        )
         raise ImageGenerationError(
             f"Inference failed for {panel_id}: {exc}"
         ) from exc
@@ -90,4 +100,10 @@ def generate_panel_image(
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / f"{panel_id}.png"
     image.save(out_path)
+    add_trace(
+        document,
+        "step4: generate_panel_image()",
+        "ok",
+        f"{panel_id} image saved to {out_path}",
+    )
     return str(out_path), chosen_seed, device
