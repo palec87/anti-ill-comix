@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import os
 import base64
 import html
 import logging
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
+# from huggingface_hub import InferenceClient
 
 import gradio as gr
 
@@ -14,6 +16,22 @@ from comic_gen.models import ValidationError
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
+
+# Silence noisy HTTP client internals
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
+
+try:
+    from dotenv import load_dotenv
+
+    # Load environment variables from .env file
+    load_dotenv()
+except ImportError:
+    logger.warning("python-dotenv not installed, skipping .env loading")
+
+# Initialize the client (automatically uses your HF_TOKEN)
+# client = InferenceClient(token=os.environ.get("HF_TOKEN"))
 
 LANGUAGE_OPTIONS = {
     "English": "en",
@@ -26,8 +44,7 @@ STYLE_OPTIONS = ["minimal", "newspaper", "watercolor", "retro"]
 MAX_SEED = 2**31 - 1
 MAX_IMAGE_SIZE = 512
 DEFAULT_IMAGE_MODEL_ID = "stabilityai/sdxl-turbo"
-DEFAULT_OPENBMB_TEXT_MODEL_ID = "openbmb/MiniCPM5-1B"
-DEFAULT_TEXT_BACKEND_MODE = "chat_template"
+DEFAULT_OPENBMB_TEXT_MODEL_ID = "Qwen/Qwen2.5-7B-Instruct" #"openbmb/MiniCPM5-1B"
 
 
 def _render_source(document: dict[str, Any]) -> str:
@@ -226,6 +243,7 @@ def generate_strip(
     use_live_feed: bool,
     panel_count: int,
     enable_model_generation: bool,
+    use_serverless_text_api: bool,
     negative_prompt: str,
     seed: int,
     randomize_seed: bool,
@@ -236,9 +254,16 @@ def generate_strip(
     debug_mode: bool,
 ) -> tuple[dict[str, Any], str, str, str, str, list[str], str, dict[str, Any]]:
     language = LANGUAGE_OPTIONS.get(language_label, "en")
-    payload = backends.fetch_article(language, use_live_feed=use_live_feed)
+    payload = backends.fetch_article(
+        language,
+        use_live_feed=use_live_feed,
+        model_generation=enable_model_generation,
+        )
     document = session.build_base_session(language, style_id, payload)
     document.setdefault("ui", {})["debug_mode"] = debug_mode
+
+    # Toggle optional HF serverless generation path used inside text_backend.
+    os.environ["HF_USE_SERVERLESS"] = "1" if use_serverless_text_api else "0"
 
     try:
         comics.generate_story_pipeline(
@@ -246,7 +271,6 @@ def generate_strip(
             panel_count=panel_count,
             enable_model_generation=enable_model_generation,
             text_model_repo_id=DEFAULT_OPENBMB_TEXT_MODEL_ID,
-            text_backend_mode=DEFAULT_TEXT_BACKEND_MODE,
             image_options={
                 "model_repo_id": DEFAULT_IMAGE_MODEL_ID,
                 "negative_prompt": negative_prompt,
@@ -292,6 +316,7 @@ def generate_strip_ui(
     use_live_feed: bool,
     panel_count: int,
     enable_model_generation: bool,
+    use_serverless_text_api: bool,
     negative_prompt: str,
     seed: int,
     randomize_seed: bool,
@@ -318,6 +343,7 @@ def generate_strip_ui(
         use_live_feed,
         panel_count,
         enable_model_generation,
+        use_serverless_text_api,
         negative_prompt,
         seed,
         randomize_seed,
@@ -419,6 +445,10 @@ with gr.Blocks() as demo:
                 label="Enable model generation (text + images)",
                 value=False,
             )
+            use_serverless_text_api_input = gr.Checkbox(
+                label="Use HF serverless API for text generation",
+                value=False,
+            )
             debug_mode_input = gr.Checkbox(
                 label="Debug panel rendering",
                 value=False,
@@ -503,6 +533,7 @@ with gr.Blocks() as demo:
             live_feed_input,
             panel_count,
             enable_model_generation_input,
+            use_serverless_text_api_input,
             negative_prompt_input,
             seed_input,
             randomize_seed_input,

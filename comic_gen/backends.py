@@ -1,10 +1,19 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
 import re
 import urllib.error
 import urllib.request
+import logging
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
 
 LANGUAGE_FEEDS = {
     "en": "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
@@ -131,9 +140,37 @@ def _parse_rss(xml_text: str) -> dict[str, str] | None:
 def fetch_article(
     language: str,
     use_live_feed: bool = False,
+    model_generation: bool = False,
 ) -> dict[str, str]:
     normalized = language.lower()
     if not use_live_feed:
+        if model_generation:
+            # load lang_demo.json from examples folder for the selected language, which includes more detailed content for model generation
+            repo_root = Path(__file__).resolve().parents[1]
+            example_path = repo_root / "examples" / f"{language}_demo.json"
+
+            if example_path.exists():
+                try:
+                    payload = json.loads(example_path.read_text(encoding="utf-8"))
+                    parsed = {
+                        "publisher": payload.get("source").get("publisher"),
+                        "source_link": payload.get("source").get("link"),
+                        "published_at": payload.get("source").get("published_at"),
+                        "title": payload.get("article").get("title"),
+                        "fulltext": payload.get("article").get("fulltext"),
+                    }
+                    if parsed and parsed.get("source_link") and parsed.get(
+                        "fulltext"
+                    ):
+                        return parsed
+                except (OSError, json.JSONDecodeError):
+                    logger.warning(
+                        f"Error reading example file for language '{language}', falling back to deterministic article."
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"Unexpected error loading example file for language '{language}': {e}. Falling back to deterministic article."
+                    )
         return DETERMINISTIC_ARTICLES.get(
             normalized,
             DETERMINISTIC_ARTICLES["en"],

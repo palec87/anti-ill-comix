@@ -1,21 +1,20 @@
 from __future__ import annotations
 
 import json
-import re
 import logging
+import os
+import re
 from typing import Any
 
-from .trace import add_trace
+from .errors import ModelPipelineError
 from .prompts import UNIFIED_SESSION_PROMPT
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
 _GENERATOR: Any | None = None
 _GENERATOR_MODEL_ID = ""
-_CHAT_MODEL: Any | None = None
-_CHAT_TOKENIZER: Any | None = None
-_CHAT_MODEL_ID = ""
+_INFERENCE_CLIENT: Any | None = None
 
 
 class TextGenerationError(RuntimeError):
@@ -26,8 +25,57 @@ class UnifiedGenerationError(RuntimeError):
     pass
 
 
-TEXT_BACKEND_PIPELINE = "pipeline"
-TEXT_BACKEND_CHAT_TEMPLATE = "chat_template"
+def _is_serverless_enabled() -> bool:
+    value = os.environ.get("HF_USE_SERVERLESS", "0").strip().lower()
+    logger.debug("HF_USE_SERVERLESS=%s", value)
+    return value in {"1", "true", "yes", "on"}
+
+
+def _get_inference_client() -> Any:
+    global _INFERENCE_CLIENT
+    if _INFERENCE_CLIENT is not None:
+        return _INFERENCE_CLIENT
+
+    token = os.environ.get("HF_TOKEN", "").strip()
+    logger.debug("HF_TOKEN=%s", "****" if token else "(not set)")
+    if not token:
+        raise TextGenerationError(
+            "HF_TOKEN is required for serverless API mode"
+        )
+
+    try:
+        from huggingface_hub import InferenceClient
+    except Exception as exc:
+        raise TextGenerationError(
+            "huggingface_hub import failed for serverless API mode"
+        ) from exc
+
+    _INFERENCE_CLIENT = InferenceClient(token=token)
+    return _INFERENCE_CLIENT
+
+
+def _generate_with_serverless_api(
+    prompt: str,
+    model_repo_id: str,
+    max_new_tokens: int,
+) -> str:
+    client = _get_inference_client()
+    try:
+        response = client.chat_completion(
+            model=model_repo_id,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=max_new_tokens,
+        )
+        generated = response.choices[0].message.content
+    except Exception as exc:
+        detail = f"{type(exc).__name__}: {exc}"
+        raise TextGenerationError(
+            f"text generation failed (serverless_api), {model_repo_id}, {detail}"
+        ) from exc
+
+    if not isinstance(generated, str) or not generated.strip():
+        raise TextGenerationError("invalid text generation output")
+    return generated
 
 
 def _get_generator(model_repo_id: str) -> Any:
@@ -63,58 +111,6 @@ def _get_generator(model_repo_id: str) -> Any:
     return generator
 
 
-def _get_chat_components(model_repo_id: str) -> tuple[Any, Any]:
-    global _CHAT_MODEL, _CHAT_TOKENIZER, _CHAT_MODEL_ID
-
-    if (
-        _CHAT_MODEL is not None
-        and _CHAT_TOKENIZER is not None
-        and _CHAT_MODEL_ID == model_repo_id
-    ):
-        return _CHAT_MODEL, _CHAT_TOKENIZER
-
-    try:
-        from transformers import AutoModelForCausalLM, AutoTokenizer
-    except Exception as exc:
-        raise TextGenerationError(
-            "transformers import failed for chat_template backend"
-        ) from exc
-
-    try:
-        tokenizer = AutoTokenizer.from_pretrained(
-            model_repo_id,
-            trust_remote_code=True,
-        )
-        model = AutoModelForCausalLM.from_pretrained(
-            model_repo_id,
-            torch_dtype="auto",
-            device_map="auto",
-            trust_remote_code=True,
-        )
-    except Exception as exc:
-        detail = f"{type(exc).__name__}: {exc}"
-        raise TextGenerationError(
-            f"failed to load chat_template model '{model_repo_id}' ({detail})"
-        ) from exc
-
-    _CHAT_MODEL = model
-    _CHAT_TOKENIZER = tokenizer
-    _CHAT_MODEL_ID = model_repo_id
-    return model, tokenizer
-
-
-def _model_device(model: Any) -> Any:
-    device = getattr(model, "device", None)
-    if device is not None:
-        return device
-    try:
-        import torch
-
-        return torch.device("cpu")
-    except Exception:
-        return "cpu"
-
-
 def _generate_with_pipeline(
     prompt: str,
     model_repo_id: str,
@@ -122,6 +118,20 @@ def _generate_with_pipeline(
     do_sample: bool,
     temperature: float,
 ) -> str:
+    if _is_serverless_enabled():
+        try:
+            generated = _generate_with_serverless_api(
+                prompt=prompt,
+                model_repo_id=model_repo_id,
+                max_new_tokens=max_new_tokens,
+            )
+            return generated
+        except TextGenerationError as exc:
+            logger.warning(
+                "Serverless API failed; falling back to local pipeline: %s",
+                exc,
+            )
+
     generator = _get_generator(model_repo_id)
     try:
         outputs = generator(
@@ -140,116 +150,6 @@ def _generate_with_pipeline(
     generated = outputs[0].get("generated_text", "")
     if not isinstance(generated, str) or not generated.strip():
         raise TextGenerationError("invalid text generation output")
-    return generated
-
-
-def _generate_with_chat_template(
-    prompt: str,
-    model_repo_id: str,
-    max_new_tokens: int,
-) -> str:
-    model, tokenizer = _get_chat_components(model_repo_id)
-    messages = [{"role": "user", "content": prompt}]
-    try:
-        inputs = tokenizer.apply_chat_template(
-            messages,
-            tokenize=True,
-            add_generation_prompt=True,
-            enable_thinking=False,
-            return_dict=True,
-            return_tensors="pt",
-        )
-    except TypeError:
-        inputs = tokenizer.apply_chat_template(
-            messages,
-            tokenize=True,
-            add_generation_prompt=True,
-            return_dict=True,
-            return_tensors="pt",
-        )
-    except Exception as exc:
-        raise TextGenerationError(
-            "failed to build chat template inputs"
-        ) from exc
-
-    try:
-        device = _model_device(model)
-        inputs = {k: v.to(device) for k, v in inputs.items()}
-        outputs = model.generate(
-            **inputs,
-            max_new_tokens=max_new_tokens,
-            do_sample=False,
-        )
-        prompt_len = inputs["input_ids"].shape[-1]
-        generated_ids = outputs[0][prompt_len:]
-        generated = tokenizer.decode(generated_ids, skip_special_tokens=True)
-    except Exception as exc:
-        raise TextGenerationError(
-            "text generation failed (chat_template)"
-        ) from exc
-
-    if not isinstance(generated, str) or not generated.strip():
-        raise TextGenerationError("invalid text generation output")
-    return generated
-
-
-def _generate_text(
-    prompt: str,
-    model_repo_id: str,
-    backend_mode: str,
-    max_new_tokens: int,
-    do_sample: bool,
-    temperature: float,
-) -> str:
-    mode = backend_mode.strip().lower()
-    if mode == TEXT_BACKEND_CHAT_TEMPLATE:
-        return _generate_with_chat_template(
-            prompt=prompt,
-            model_repo_id=model_repo_id,
-            max_new_tokens=max_new_tokens,
-        )
-    if mode == TEXT_BACKEND_PIPELINE:
-        return _generate_with_pipeline(
-            prompt=prompt,
-            model_repo_id=model_repo_id,
-            max_new_tokens=max_new_tokens,
-            do_sample=do_sample,
-            temperature=temperature,
-        )
-    raise TextGenerationError(
-        f"unsupported text backend mode '{backend_mode}'"
-    )
-
-
-def generate_characters_from_text(
-    fulltext: str,
-    language: str,
-    model_repo_id: str,
-    backend_mode: str = TEXT_BACKEND_PIPELINE,
-) -> str:
-    prompt = (
-        "Create 2 or 3 comic characters from the article below. "
-        "First summarize the article in one sentence mentally, "
-        "then output only "
-        "a JSON array with objects using keys id, name, description. "
-        "Use language code "
-        f"'{language}'. Keep text age-appropriate and simple. "
-        "Do not include markdown. Article:\n"
-        f"{fulltext}"
-    )
-
-    try:
-        generated = _generate_text(
-            prompt,
-            model_repo_id=model_repo_id,
-            backend_mode=backend_mode,
-            max_new_tokens=220,
-            do_sample=False,
-            temperature=0.1,
-        )
-        logger.info(f"Generated characters text in {backend_mode}: {generated}")
-    except Exception as exc:
-        raise TextGenerationError("text generation failed") from exc
     return generated
 
 
@@ -365,9 +265,9 @@ def _normalize_panels(raw: Any, panel_count: int) -> list[dict[str, Any]]:
                     dialogue.append(
                         {"character_id": character_id, "text": text}
                     )
-        if len(dialogue) < 2:
+        if len(dialogue) < 1:
             raise UnifiedGenerationError(
-                "each panel needs at least 2 dialogue lines"
+                "each panel needs at least 1 dialogue line"
             )
 
         bubbles_raw = item.get("bubbles", [])
@@ -470,13 +370,67 @@ def _normalize_exercises(
     return normalized
 
 
+def _normalize_model_fields(
+    generated: dict[str, Any],
+) -> tuple[
+    dict[str, Any],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+]:
+    simplified = generated.get("simplified")
+    characters = generated.get("characters")
+    panels = generated.get("panels")
+    exercises_data = generated.get("exercises")
+    if not isinstance(simplified, dict):
+        raise ModelPipelineError("model payload missing simplified")
+    if not isinstance(characters, list):
+        raise ModelPipelineError("model payload missing characters")
+    if not isinstance(panels, list):
+        raise ModelPipelineError("model payload missing panels")
+    if not isinstance(exercises_data, list):
+        raise ModelPipelineError("model payload missing exercises")
+    return simplified, characters, panels, exercises_data
+
+# def generate_characters_from_text(
+#     fulltext: str,
+#     language: str,
+#     model_repo_id: str,
+# ) -> str:
+#     prompt = (
+#         "Create 2 or 3 comic characters from the article below. "
+#         "First summarize the article in one sentence mentally, "
+#         "then output only "
+#         "a JSON array with objects using keys id, name, description. "
+#         "Use language code "
+#         f"'{language}'. Keep text age-appropriate and simple. "
+#         "Do not include markdown. Article:\n"
+#         f"{fulltext}"
+#     )
+
+#     try:
+#         generated = _generate_with_pipeline(
+#             prompt,
+#             model_repo_id=model_repo_id,
+#             max_new_tokens=220,
+#             do_sample=False,
+#             temperature=0.1,
+#         )
+#         logger.info(
+#             "Generated characters text: %s",
+#             generated,
+#         )
+#     except Exception as exc:
+#         raise TextGenerationError("text generation failed") from exc
+#     return generated
+
+
 def generate_session_fields_from_article(
     language: str,
     style_id: str,
     article: dict[str, Any],
     panel_count: int,
     model_repo_id: str,
-    backend_mode: str = TEXT_BACKEND_PIPELINE,
 ) -> dict[str, Any]:
     fulltext = str(article.get("fulltext", "")).strip()
     title = str(article.get("title", "")).strip()
@@ -493,10 +447,9 @@ def generate_session_fields_from_article(
         f"article_fulltext={fulltext}\n"
     )
     try:
-        raw_text = _generate_text(
+        raw_text = _generate_with_pipeline(
             prompt,
             model_repo_id=model_repo_id,
-            backend_mode=backend_mode,
             max_new_tokens=1600,
             do_sample=False,
             temperature=0.1,
@@ -507,13 +460,37 @@ def generate_session_fields_from_article(
     if not isinstance(raw_text, str) or not raw_text.strip():
         raise UnifiedGenerationError("invalid model output text")
 
-    logger.info(f"Generated unified session text in {backend_mode}: {raw_text}")
+    logger.info(
+        "Generated unified session text: %s",
+        raw_text,
+    )
     payload = _extract_json_object(raw_text)
-    logger.info(f"Extracted JSON payload for unified session: {payload}")
-    simplified = _normalize_simplified(payload.get("simplified"))
-    characters = _normalize_characters(payload.get("characters"))
-    panels = _normalize_panels(payload.get("panels"), target_count)
-    exercises = _normalize_exercises(payload.get("exercises"), panels)
+    logger.info("Extracted JSON payload for unified session: %s", payload)
+
+    try:
+        simplified = _normalize_simplified(payload.get("simplified"))
+    except UnifiedGenerationError as exc:
+        raise UnifiedGenerationError("simplified normalization failed") from exc
+    logger.info("Normalized simplified: %s", simplified)
+
+    try:
+        characters = _normalize_characters(payload.get("characters"))
+    except UnifiedGenerationError as exc:
+        raise UnifiedGenerationError("character normalization failed") from exc
+    logger.info("Normalized characters: %s", characters)
+
+    try:
+        panels = _normalize_panels(payload.get("panels"), target_count)
+    except UnifiedGenerationError as exc:
+        raise UnifiedGenerationError("panel normalization failed") from exc
+    logger.info("Normalized panels: %s", panels)
+
+    try:
+        exercises = _normalize_exercises(payload.get("exercises"), panels)
+    except UnifiedGenerationError as exc:
+        raise UnifiedGenerationError("exercise normalization failed") from exc
+    logger.info("Normalized exercises: %s", exercises)
+
     return {
         "simplified": simplified,
         "characters": characters,

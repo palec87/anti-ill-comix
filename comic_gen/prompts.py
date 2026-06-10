@@ -20,5 +20,7 @@ UNIFIED_SESSION_PROMPT = (
     "render includes image_path and overlay_applied boolean; "
     "exercises=[{exercise_id,panel_id,prompt,blanks,answer_key,"
     "feedback_rules}] "
-    "same length as panels. Keep text simple and age-appropriate."
+    "example of the exercise output format: "
+    "{'exercise_id': 'ex_panel_1', 'panel_id': 'panel_1', 'prompt': 'We read one short ____ together.', 'blanks': ['____'], 'answer_key': ['instruction'], 'feedback_rules': { 'case_sensitive': false, 'allow_trim_spaces': true}}"
+    "same length as panels. Keep text simple and adult age-appropriate."
 )
