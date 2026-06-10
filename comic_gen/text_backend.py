@@ -6,7 +6,12 @@ import os
 import re
 from typing import Any
 
-from .errors import ModelPipelineError
+from .text_utils import _normalize_characters
+from .errors import (
+    ModelPipelineError,
+    TextGenerationError,
+    UnifiedGenerationError,
+)
 from .prompts import UNIFIED_SESSION_PROMPT
 
 logger = logging.getLogger(__name__)
@@ -15,14 +20,6 @@ logging.basicConfig(level=logging.DEBUG)
 _GENERATOR: Any | None = None
 _GENERATOR_MODEL_ID = ""
 _INFERENCE_CLIENT: Any | None = None
-
-
-class TextGenerationError(RuntimeError):
-    pass
-
-
-class UnifiedGenerationError(RuntimeError):
-    pass
 
 
 def _is_serverless_enabled() -> bool:
@@ -190,37 +187,6 @@ def _normalize_simplified(raw: Any) -> dict[str, Any]:
         "level": level,
         "keywords": keywords,
     }
-
-
-def _normalize_characters(raw: Any) -> list[dict[str, str]]:
-    if not isinstance(raw, list):
-        raise UnifiedGenerationError("characters must be array")
-    normalized: list[dict[str, str]] = []
-    for idx, item in enumerate(raw):
-        if not isinstance(item, dict):
-            continue
-        char_id = str(item.get("id", "")).strip()
-        name = str(item.get("name", "")).strip()
-        description = str(item.get("description", "")).strip()
-        if not name or not description:
-            continue
-        if not char_id:
-            slug = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
-            char_id = f"char_{slug or idx + 1}"
-        normalized.append(
-            {
-                "id": char_id,
-                "name": name,
-                "description": description,
-            }
-        )
-        if len(normalized) == 3:
-            break
-    if len(normalized) < 2:
-        raise UnifiedGenerationError(
-            "characters must include at least 2 entries"
-        )
-    return normalized
 
 
 def _normalize_bbox(raw: Any) -> list[int]:

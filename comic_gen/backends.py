@@ -145,17 +145,23 @@ def fetch_article(
     normalized = language.lower()
     if not use_live_feed:
         if model_generation:
-            # load lang_demo.json from examples folder for the selected language, which includes more detailed content for model generation
+            # load <lang_demo>.json from examples folder
             repo_root = Path(__file__).resolve().parents[1]
             example_path = repo_root / "examples" / f"{language}_demo.json"
 
             if example_path.exists():
                 try:
-                    payload = json.loads(example_path.read_text(encoding="utf-8"))
+                    payload = json.loads(
+                        example_path.read_text(encoding="utf-8")
+                    )
                     parsed = {
-                        "publisher": payload.get("source").get("publisher"),
+                        "publisher": payload.get("source").get(
+                            "publisher"
+                        ),
                         "source_link": payload.get("source").get("link"),
-                        "published_at": payload.get("source").get("published_at"),
+                        "published_at": payload.get("source").get(
+                            "published_at"
+                        ),
                         "title": payload.get("article").get("title"),
                         "fulltext": payload.get("article").get("fulltext"),
                     }
@@ -165,11 +171,13 @@ def fetch_article(
                         return parsed
                 except (OSError, json.JSONDecodeError):
                     logger.warning(
-                        f"Error reading example file for language '{language}', falling back to deterministic article."
+                        f"Error reading example file for '{language}',"
+                        f" falling back to deterministic article."
                     )
                 except Exception as e:
                     logger.warning(
-                        f"Unexpected error loading example file for language '{language}': {e}. Falling back to deterministic article."
+                        f"Unexpected error loading example file for '{language}':"
+                        f" {e}. Falling back to deterministic article."
                     )
         return DETERMINISTIC_ARTICLES.get(
             normalized,

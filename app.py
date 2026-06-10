@@ -43,7 +43,7 @@ LANGUAGE_OPTIONS = {
 STYLE_OPTIONS = ["minimal", "newspaper", "watercolor", "retro"]
 MAX_SEED = 2**31 - 1
 MAX_IMAGE_SIZE = 512
-DEFAULT_IMAGE_MODEL_ID = "stabilityai/sdxl-turbo"
+DEFAULT_IMAGE_MODEL_ID = "black-forest-labs/FLUX.1-schnell"#"stabilityai/sdxl-turbo"
 DEFAULT_OPENBMB_TEXT_MODEL_ID = "Qwen/Qwen2.5-7B-Instruct" #"openbmb/MiniCPM5-1B"
 
 
@@ -226,10 +226,17 @@ def _render_panels_html(
 
 def _render_transcript(document: dict[str, Any]) -> str:
     lines: list[str] = ["### Transcript"]
-    for panel in document.get("panels", []):
-        lines.append(f"Panel {panel['frame_index']}")
+
+    # Use enumerate to track if we are on the first panel or a later one
+    for i, panel in enumerate(document.get("panels", [])):
+        # If it's the 2nd panel or later, inject an empty string for a blank line gap
+        if i > 0:
+            lines.append("")
+
+        lines.append(f"PANEL {panel['frame_index']}")
         for line in panel.get("dialogue", []):
             lines.append(f"- {line['character_id']}: {line['text']}")
+
     return "\n".join(lines)
 
 
@@ -243,7 +250,7 @@ def generate_strip(
     use_live_feed: bool,
     panel_count: int,
     enable_model_generation: bool,
-    use_serverless_text_api: bool,
+    use_serverless_api: bool,
     negative_prompt: str,
     seed: int,
     randomize_seed: bool,
@@ -262,8 +269,9 @@ def generate_strip(
     document = session.build_base_session(language, style_id, payload)
     document.setdefault("ui", {})["debug_mode"] = debug_mode
 
-    # Toggle optional HF serverless generation path used inside text_backend.
-    os.environ["HF_USE_SERVERLESS"] = "1" if use_serverless_text_api else "0"
+    # Toggle optional HF serverless generation path used for text and image.
+    os.environ["HF_USE_SERVERLESS"] = "1" if use_serverless_api else "0"
+    os.environ["HF_USE_SERVERLESS_IMAGE"] = "1" if use_serverless_api else "0"
 
     try:
         comics.generate_story_pipeline(
@@ -273,6 +281,7 @@ def generate_strip(
             text_model_repo_id=DEFAULT_OPENBMB_TEXT_MODEL_ID,
             image_options={
                 "model_repo_id": DEFAULT_IMAGE_MODEL_ID,
+                "use_serverless_image_api": use_serverless_api,
                 "negative_prompt": negative_prompt,
                 "seed": seed,
                 "randomize_seed": randomize_seed,
@@ -316,7 +325,7 @@ def generate_strip_ui(
     use_live_feed: bool,
     panel_count: int,
     enable_model_generation: bool,
-    use_serverless_text_api: bool,
+    use_serverless_api: bool,
     negative_prompt: str,
     seed: int,
     randomize_seed: bool,
@@ -343,7 +352,7 @@ def generate_strip_ui(
         use_live_feed,
         panel_count,
         enable_model_generation,
-        use_serverless_text_api,
+        use_serverless_api,
         negative_prompt,
         seed,
         randomize_seed,
@@ -445,8 +454,8 @@ with gr.Blocks() as demo:
                 label="Enable model generation (text + images)",
                 value=False,
             )
-            use_serverless_text_api_input = gr.Checkbox(
-                label="Use HF serverless API for text generation",
+            use_serverless_api_input = gr.Checkbox(
+                label="Use HF serverless API for text + image generation",
                 value=False,
             )
             debug_mode_input = gr.Checkbox(
@@ -505,7 +514,7 @@ with gr.Blocks() as demo:
         source_md = gr.Markdown()
         summary_md = gr.Markdown()
         panel_html = gr.HTML()
-        transcript_md = gr.Markdown()
+        transcript_md = gr.Markdown(elem_id="transcript_md")
 
         gr.Markdown("### Writing Exercises")
         panel_selector = gr.Dropdown(
@@ -533,7 +542,7 @@ with gr.Blocks() as demo:
             live_feed_input,
             panel_count,
             enable_model_generation_input,
-            use_serverless_text_api_input,
+            use_serverless_api_input,
             negative_prompt_input,
             seed_input,
             randomize_seed_input,

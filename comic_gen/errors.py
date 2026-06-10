@@ -13,3 +13,19 @@ class ModelPipelineError(RuntimeError):
     def __init__(self, message: str):
         super().__init__(message)
         logger.error("ModelPipelineError: %s", message)
+
+
+class TextGenerationError(RuntimeError):
+    """Exception raised for errors in text generation."""
+
+    def __init__(self, message: str):
+        super().__init__(message)
+        logger.error("TextGenerationError: %s", message)
+
+
+class UnifiedGenerationError(RuntimeError):
+    """Exception raised for errors in unified generation."""
+
+    def __init__(self, message: str):
+        super().__init__(message)
+        logger.error("UnifiedGenerationError: %s", message)

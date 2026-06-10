@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from time import perf_counter
 from typing import Any
 import logging
 
-from .image_backend import ImageGenerationError, MAX_SEED, generate_panel_image
+from .image_backend import MAX_SEED, apply_image_generation_to_panels
 from .text_backend import (
     TextGenerationError,
     UnifiedGenerationError,
@@ -25,6 +24,7 @@ logging.basicConfig(
 def _default_image_options() -> dict[str, Any]:
     return {
         "enable_live_images": False,
+        "use_serverless_image_api": False,
         "model_repo_id": "stabilityai/sdxl-turbo",
         "negative_prompt": "",
         "seed": 0,
@@ -63,108 +63,15 @@ def _normalized_image_options(
     options["enable_live_images"] = bool(
         options.get("enable_live_images", False)
     )
+    options["use_serverless_image_api"] = bool(
+        options.get("use_serverless_image_api", False)
+    )
     options["randomize_seed"] = bool(options.get("randomize_seed", True))
     options["model_repo_id"] = str(
         options.get("model_repo_id", "stabilityai/sdxl-turbo")
     )
     options["negative_prompt"] = str(options.get("negative_prompt", ""))
     return options
-
-
-def _apply_image_generation_to_panels(
-    document: dict[str, Any],
-    panels: list[dict[str, Any]],
-    options: dict[str, Any],
-    strict_mode: bool = False,
-) -> dict[str, int]:
-    image_source_counts: dict[str, int] = {}
-    if options["enable_live_images"]:
-        for panel in panels:
-            panel_id = panel.get("panel_id", "")
-            frame_index = int(panel.get("frame_index", 1))
-            render = panel.setdefault("render", {})
-            fallback_path = str(
-                render.get("image_path", f"assets/panel_{frame_index}.png")
-            )
-            panel_seed = options["seed"] + (frame_index - 1)
-            started = perf_counter()
-            add_trace(
-                document,
-                "step4_image_generate",
-                "start",
-                f"{panel_id} generation started",
-            )
-            try:
-                image_path, used_seed, device = generate_panel_image(
-                    document=document,
-                    prompt=str(panel.get("scene_description", "")),
-                    negative_prompt=options["negative_prompt"],
-                    session_id=document["session_id"],
-                    panel_id=panel_id,
-                    model_repo_id=options["model_repo_id"],
-                    seed=panel_seed,
-                    randomize_seed=options["randomize_seed"],
-                    width=options["width"],
-                    height=options["height"],
-                    guidance_scale=options["guidance_scale"],
-                    num_inference_steps=options["num_inference_steps"],
-                )
-                elapsed_ms = int((perf_counter() - started) * 1000)
-                render["image_path"] = image_path
-                render["image_source"] = "live"
-                image_source_counts["live"] = (
-                    image_source_counts.get("live", 0) + 1
-                )
-                render["seed"] = used_seed
-                render["device"] = device
-                add_trace(
-                    document,
-                    "step4_image_generate",
-                    "ok",
-                    f"{panel_id} live image generated in {elapsed_ms}ms",
-                )
-            except ImageGenerationError as exc:
-                elapsed_ms = int((perf_counter() - started) * 1000)
-                if strict_mode:
-                    raise ModelPipelineError(
-                        f"image generation failed for {panel_id}: {exc}"
-                    ) from exc
-                render["image_path"] = fallback_path
-                render["image_source"] = "fallback"
-                image_source_counts["fallback"] = (
-                    image_source_counts.get("fallback", 0) + 1
-                )
-                render["seed"] = panel_seed
-                add_trace(
-                    document,
-                    "step4_image_generate",
-                    "fallback",
-                    f"{panel_id} fallback after {elapsed_ms}ms: {exc}",
-                )
-    else:
-        for panel in panels:
-            render = panel.setdefault("render", {})
-            frame_index = int(panel.get("frame_index", 1))
-            render.setdefault("image_path", f"assets/panel_{frame_index}.png")
-            render["image_source"] = "deterministic"
-            image_source_counts["deterministic"] = (
-                image_source_counts.get("deterministic", 0) + 1
-            )
-
-    summary_bits = [
-        f"{key}={value}"
-        for key, value in image_source_counts.items()
-    ]
-    add_trace(
-        document,
-        "step4_panels",
-        "ok",
-        (
-            f"Generated {len(panels)} comic panels"
-            f" ({', '.join(summary_bits)})"
-        ),
-    )
-    return image_source_counts
 
 
 def generate_story_pipeline(
@@ -221,11 +128,11 @@ def generate_story_pipeline(
             "ok",
             f"Model text fields generated using {text_model_repo_id}",
         )
-        _apply_image_generation_to_panels(
+        apply_image_generation_to_panels(
             document,
             document["panels"],
             options,
-            strict_mode=True,
+            strict_mode=False,
         )
         apply_overlay(document)
         add_trace(

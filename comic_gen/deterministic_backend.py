@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from . import exercise
-from .text_utils import split_sentences
+from .text_utils import split_sentences, _normalize_characters
 from .trace import add_trace
 
 STYLE_SCENE_HINTS = {
@@ -33,35 +33,6 @@ def _example_characters(language: str) -> list[dict[str, str]] | None:
     if not normalized:
         return None
     return normalized
-
-
-def _normalize_characters(raw: Any) -> list[dict[str, str]]:
-    if not isinstance(raw, list):
-        return []
-
-    normalized: list[dict[str, str]] = []
-    for index, item in enumerate(raw):
-        if not isinstance(item, dict):
-            continue
-        name = str(item.get("name", "")).strip()
-        description = str(item.get("description", "")).strip()
-        char_id = str(item.get("id", "")).strip()
-        if not name or not description:
-            continue
-        if not char_id:
-            slug = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
-            char_id = f"char_{slug or index + 1}"
-        normalized.append(
-            {
-                "id": char_id,
-                "name": name,
-                "description": description,
-            }
-        )
-        if len(normalized) == 3:
-            break
-
-    return normalized if len(normalized) >= 2 else []
 
 
 def _generate_characters(document: dict[str, Any]) -> None:
