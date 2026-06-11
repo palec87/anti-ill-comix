@@ -155,6 +155,7 @@ def _generate_with_pipeline(
         outputs = generator(
             [{"role": "user", "content": prompt}],
             generation_config=GenerationConfig(**gen_config_kwargs),
+            response_format={"type": "json_object"},
             return_full_text=False,
         )
     except Exception as exc:
