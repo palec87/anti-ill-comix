@@ -67,7 +67,8 @@ def _generate_with_serverless_api(
     except Exception as exc:
         detail = f"{type(exc).__name__}: {exc}"
         raise TextGenerationError(
-            f"text generation failed (serverless_api), {model_repo_id}, {detail}"
+            "text generation failed (serverless_api), "
+            f"{model_repo_id}, {detail}"
         ) from exc
 
     if not isinstance(generated, str) or not generated.strip():
@@ -82,20 +83,18 @@ def _get_generator(model_repo_id: str) -> Any:
         return _GENERATOR
 
     try:
-        import torch
         from transformers import pipeline
     except Exception as exc:
         raise TextGenerationError(
-            "transformers/torch import failed"
+            "transformers import failed"
         ) from exc
 
-    device = 0 if torch.cuda.is_available() else -1
     try:
         generator = pipeline(
             "text-generation",
             model=model_repo_id,
             trust_remote_code=True,
-            device=device,
+            device_map="auto",
         )
     except Exception as exc:
         detail = f"{type(exc).__name__}: {exc}"
@@ -139,7 +138,10 @@ def _generate_with_pipeline(
             return_full_text=False,
         )
     except Exception as exc:
-        raise TextGenerationError("text generation failed (pipeline)") from exc
+        detail = f"{type(exc).__name__}: {exc}"
+        raise TextGenerationError(
+            f"text generation failed (pipeline), {model_repo_id}, {detail}"
+        ) from exc
 
     if not outputs:
         raise TextGenerationError("empty text generation output")
@@ -358,40 +360,8 @@ def _normalize_model_fields(
         raise ModelPipelineError("model payload missing exercises")
     return simplified, characters, panels, exercises_data
 
-# def generate_characters_from_text(
-#     fulltext: str,
-#     language: str,
-#     model_repo_id: str,
-# ) -> str:
-#     prompt = (
-#         "Create 2 or 3 comic characters from the article below. "
-#         "First summarize the article in one sentence mentally, "
-#         "then output only "
-#         "a JSON array with objects using keys id, name, description. "
-#         "Use language code "
-#         f"'{language}'. Keep text age-appropriate and simple. "
-#         "Do not include markdown. Article:\n"
-#         f"{fulltext}"
-#     )
 
-#     try:
-#         generated = _generate_with_pipeline(
-#             prompt,
-#             model_repo_id=model_repo_id,
-#             max_new_tokens=220,
-#             do_sample=False,
-#             temperature=0.1,
-#         )
-#         logger.info(
-#             "Generated characters text: %s",
-#             generated,
-#         )
-#     except Exception as exc:
-#         raise TextGenerationError("text generation failed") from exc
-#     return generated
-
-
-def generate_session_fields_from_article(
+def generate_text_content_from_article(
     language: str,
     style_id: str,
     article: dict[str, Any],
@@ -421,10 +391,12 @@ def generate_session_fields_from_article(
             temperature=0.1,
         )
     except Exception as exc:
-        raise UnifiedGenerationError("model generation call failed") from exc
+        raise UnifiedGenerationError("Text generation call failed") from exc
 
     if not isinstance(raw_text, str) or not raw_text.strip():
-        raise UnifiedGenerationError("invalid model output text")
+        raise UnifiedGenerationError(
+            "invalid model output, Not a non-empty string"
+        )
 
     logger.info(
         "Generated unified session text: %s",
@@ -436,7 +408,9 @@ def generate_session_fields_from_article(
     try:
         simplified = _normalize_simplified(payload.get("simplified"))
     except UnifiedGenerationError as exc:
-        raise UnifiedGenerationError("simplified normalization failed") from exc
+        raise UnifiedGenerationError(
+            "simplified normalization failed"
+        ) from exc
     logger.info("Normalized simplified: %s", simplified)
 
     try:

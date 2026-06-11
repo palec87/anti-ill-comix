@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 from time import perf_counter
 
-from comic_gen.errors import ModelPipelineError
+from comic_gen.errors import ModelPipelineError, ImageGenerationError
 
 from .trace import add_trace
 
@@ -19,10 +19,6 @@ _PIPELINE: Any | None = None
 _PIPELINE_MODEL_ID: str | None = None
 _DEVICE: str | None = None
 _INFERENCE_CLIENT: Any | None = None
-
-
-class ImageGenerationError(Exception):
-    """Raised when live image generation fails."""
 
 
 def _is_serverless_image_enabled(options: dict[str, Any]) -> bool:
@@ -226,7 +222,7 @@ def _generate_panel_image(
     return str(out_path), chosen_seed, device
 
 
-def apply_image_generation_to_panels(
+def generate_image_panels(
     document: dict[str, Any],
     panels: list[dict[str, Any]],
     options: dict[str, Any],

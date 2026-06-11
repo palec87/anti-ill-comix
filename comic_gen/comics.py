@@ -3,11 +3,11 @@ from __future__ import annotations
 from typing import Any
 import logging
 
-from .image_backend import MAX_SEED, apply_image_generation_to_panels
+from .image_backend import MAX_SEED, generate_image_panels
 from .text_backend import (
     TextGenerationError,
     UnifiedGenerationError,
-    generate_session_fields_from_article,
+    generate_text_content_from_article,
     _normalize_model_fields,
 )
 from .backends import deterministic_pipeline
@@ -82,27 +82,16 @@ def generate_story_pipeline(
     image_options: dict[str, Any] | None = None,
 ) -> None:
     if not enable_model_generation:
-        add_trace(
-            document,
-            "model_pipeline",
-            "ok",
-            "Model mode disabled, using deterministic pipeline",
-        )
-        deterministic_pipeline(
-            document,
-        )
+        logger.info("Running deterministic pipeline")
+        deterministic_pipeline(document)
         return
 
     options = _normalized_image_options(image_options)
     options["enable_live_images"] = True
-    add_trace(
-        document,
-        "model_pipeline",
-        "start",
-        "Unified model pipeline started (text + image)",
-    )
+    logger.info("Running unified model pipeline (text + image)")
+
     try:
-        generated = generate_session_fields_from_article(
+        generated = generate_text_content_from_article(
             language=str(document.get("language", "en")),
             style_id=str(document.get("style_id", "minimal")),
             article=document.get("article", {}),
@@ -120,14 +109,13 @@ def generate_story_pipeline(
         document["characters"] = characters
         document["panels"] = panels
         document["exercises"] = exercises_data
-        logger.info(f"Document after normalization in generate_story_pipeline: {document['characters']}")
         add_trace(
             document,
             "model_pipeline",
             "ok",
             f"Model text fields generated using {text_model_repo_id}",
         )
-        apply_image_generation_to_panels(
+        generate_image_panels(
             document,
             document["panels"],
             options,
