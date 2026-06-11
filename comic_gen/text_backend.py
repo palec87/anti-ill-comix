@@ -15,7 +15,11 @@ from .errors import (
 from .prompts import UNIFIED_SESSION_PROMPT
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(
+    level=logging.INFO,
+    force=True,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
 
 IS_LOCAL = os.environ.get("LOCAL_DEV", "False") == "True"
 _GENERATOR: Any | None = None

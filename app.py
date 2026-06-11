@@ -13,7 +13,11 @@ from comic_gen import backends, comics, exercise, session, trace
 from comic_gen.models import ValidationError
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    force=True,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
 
 # Silence noisy HTTP client internals
 logging.getLogger("httpx").setLevel(logging.WARNING)
