@@ -1,7 +1,6 @@
 gradio
 accelerate
 diffusers
-hugggingface_hub
 invisible_watermark
 python-dotenv
 torch

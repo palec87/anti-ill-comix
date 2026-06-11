@@ -5,7 +5,8 @@ import json
 import logging
 from pathlib import Path
 from typing import Any
-
+from datetime import datetime, timezone
+import xml.etree.ElementTree as ET
 from .errors import UnifiedGenerationError
 
 
@@ -32,6 +33,55 @@ def load_json_article(language: str) -> dict[str, str]:
 def clean_text(value: str) -> str:
     value = re.sub(r"\s+", " ", value or "").strip()
     return value
+
+
+def _parse_rss(xml_text: str) -> dict[str, str] | None:
+    try:
+        root = ET.fromstring(xml_text)
+    except ET.ParseError:
+        return None
+
+    # Try RSS item first.
+    item = root.find("./channel/item")
+    if item is None:
+        # Try Atom entry.
+        item = root.find("{http://www.w3.org/2005/Atom}entry")
+        if item is None:
+            return None
+        title = clean_text(
+            item.findtext("{http://www.w3.org/2005/Atom}title", "")
+        )
+        summary = clean_text(
+            item.findtext("{http://www.w3.org/2005/Atom}summary", "")
+        )
+        link_elem = item.find("{http://www.w3.org/2005/Atom}link")
+        link = ""
+        if link_elem is not None:
+            link = link_elem.attrib.get("href", "")
+        published = clean_text(
+            item.findtext("{http://www.w3.org/2005/Atom}updated", "")
+        )
+        return {
+            "publisher": "Atom Feed",
+            "source_link": link,
+            "published_at": (
+                published or datetime.now(timezone.utc).isoformat()
+            ),
+            "title": title or "Untitled",
+            "fulltext": summary or title,
+        }
+
+    title = clean_text(item.findtext("title", ""))
+    description = clean_text(item.findtext("description", ""))
+    link = clean_text(item.findtext("link", ""))
+    pub_date = clean_text(item.findtext("pubDate", ""))
+    return {
+        "publisher": "RSS Feed",
+        "source_link": link,
+        "published_at": pub_date or datetime.now(timezone.utc).isoformat(),
+        "title": title or "Untitled",
+        "fulltext": description or title,
+    }
 
 
 def _normalize_characters(raw: Any) -> list[dict[str, str]]:

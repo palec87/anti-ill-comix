@@ -6,8 +6,6 @@ import html
 import logging
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote
-# from huggingface_hub import InferenceClient
 
 import gradio as gr
 
@@ -30,8 +28,6 @@ try:
 except ImportError:
     logger.warning("python-dotenv not installed, skipping .env loading")
 
-# Initialize the client (automatically uses your HF_TOKEN)
-# client = InferenceClient(token=os.environ.get("HF_TOKEN"))
 
 LANGUAGE_OPTIONS = {
     "English": "en",
@@ -69,64 +65,6 @@ def _render_summary(document: dict[str, Any]) -> str:
     )
 
 
-def _fallback_image_src(panel: dict[str, Any]) -> str:
-    frame_index = panel.get("frame_index", "?")
-    scene = html.escape(panel.get("scene_description", "Comic panel"))
-    scene = scene[:110]
-    svg_lines = [
-        (
-            '<svg xmlns="http://www.w3.org/2000/svg" '
-            'width="512" height="512" viewBox="0 0 512 512">'
-        ),
-        '  <defs>',
-        '    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">',
-        '      <stop offset="0%" stop-color="#fff7e8"/>',
-        '      <stop offset="100%" stop-color="#eef4ff"/>',
-        '    </linearGradient>',
-        '  </defs>',
-        '  <rect width="512" height="512" rx="28" fill="url(#bg)"/>',
-        (
-            '  <rect x="24" y="24" width="464" height="464" '
-            'rx="24" fill="none" stroke="#c5cfdb" stroke-width="3"/>'
-        ),
-        (
-            '  <text x="40" y="72" font-size="22" '
-            'font-family="Arial, sans-serif" fill="#415166">'
-            f'Panel {frame_index}</text>'
-        ),
-        (
-            '  <text x="40" y="120" font-size="16" '
-            'font-family="Arial, sans-serif" fill="#5f6f82">'
-            f'{scene}</text>'
-        ),
-        '  <circle cx="150" cy="270" r="54" fill="#d8e4f2"/>',
-        '  <circle cx="344" cy="270" r="54" fill="#f2dec7"/>',
-        (
-            '  <rect x="106" y="334" width="88" height="108" '
-            'rx="22" fill="#d8e4f2"/>'
-        ),
-        (
-            '  <rect x="300" y="334" width="88" height="108" '
-            'rx="22" fill="#f2dec7"/>'
-        ),
-        (
-            '  <path d="M88 180h160a18 18 0 0 1 18 18v48a18 18 '
-            '0 0 1-18 18h-90l-34 24 10-24H88a18 18 0 0 1-18-18v-48'
-            'a18 18 0 0 1 18-18z" fill="#ffffff" stroke="#9ba6b2" '
-            'stroke-width="3"/>'
-        ),
-        (
-            '  <path d="M264 120h160a18 18 0 0 1 18 18v48a18 18 '
-            '0 0 1-18 18h-84l-34 24 10-24h-52a18 18 0 0 1-18-18v-48'
-            'a18 18 0 0 1 18-18z" fill="#ffffff" stroke="#9ba6b2" '
-            'stroke-width="3"/>'
-        ),
-        '</svg>',
-    ]
-    svg = "\n".join(svg_lines)
-    return "data:image/svg+xml;utf8," + quote(svg)
-
-
 def _panel_image_src(panel: dict[str, Any]) -> tuple[str, str]:
     render = panel.get("render", {})
     image_path = render.get("image_path")
@@ -140,7 +78,7 @@ def _panel_image_src(panel: dict[str, Any]) -> tuple[str, str]:
             except OSError:
                 pass
 
-    return _fallback_image_src(panel), "placeholder"
+    return backends.fallback_image_src(panel), "placeholder"
 
 
 def _panel_image_html(panel: dict[str, Any]) -> str:

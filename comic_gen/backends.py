@@ -4,12 +4,12 @@ import json
 import urllib.error
 import urllib.request
 import logging
-import xml.etree.ElementTree as ET
-from datetime import datetime, timezone
 from typing import Any
+import html
+from urllib.parse import quote
 
 from . import exercise
-from .text_utils import load_json_article, clean_text
+from .text_utils import load_json_article, _parse_rss
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -38,53 +38,62 @@ def deterministic_pipeline(
     exercise.generate_exercises(document)
 
 
-def _parse_rss(xml_text: str) -> dict[str, str] | None:
-    try:
-        root = ET.fromstring(xml_text)
-    except ET.ParseError:
-        return None
-
-    # Try RSS item first.
-    item = root.find("./channel/item")
-    if item is None:
-        # Try Atom entry.
-        item = root.find("{http://www.w3.org/2005/Atom}entry")
-        if item is None:
-            return None
-        title = clean_text(
-            item.findtext("{http://www.w3.org/2005/Atom}title", "")
-        )
-        summary = clean_text(
-            item.findtext("{http://www.w3.org/2005/Atom}summary", "")
-        )
-        link_elem = item.find("{http://www.w3.org/2005/Atom}link")
-        link = ""
-        if link_elem is not None:
-            link = link_elem.attrib.get("href", "")
-        published = clean_text(
-            item.findtext("{http://www.w3.org/2005/Atom}updated", "")
-        )
-        return {
-            "publisher": "Atom Feed",
-            "source_link": link,
-            "published_at": (
-                published or datetime.now(timezone.utc).isoformat()
-            ),
-            "title": title or "Untitled",
-            "fulltext": summary or title,
-        }
-
-    title = clean_text(item.findtext("title", ""))
-    description = clean_text(item.findtext("description", ""))
-    link = clean_text(item.findtext("link", ""))
-    pub_date = clean_text(item.findtext("pubDate", ""))
-    return {
-        "publisher": "RSS Feed",
-        "source_link": link,
-        "published_at": pub_date or datetime.now(timezone.utc).isoformat(),
-        "title": title or "Untitled",
-        "fulltext": description or title,
-    }
+def fallback_image_src(panel: dict[str, Any]) -> str:
+    frame_index = panel.get("frame_index", "?")
+    scene = html.escape(panel.get("scene_description", "Comic panel"))
+    scene = scene[:110]
+    svg_lines = [
+        (
+            '<svg xmlns="http://www.w3.org/2000/svg" '
+            'width="512" height="512" viewBox="0 0 512 512">'
+        ),
+        '  <defs>',
+        '    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">',
+        '      <stop offset="0%" stop-color="#fff7e8"/>',
+        '      <stop offset="100%" stop-color="#eef4ff"/>',
+        '    </linearGradient>',
+        '  </defs>',
+        '  <rect width="512" height="512" rx="28" fill="url(#bg)"/>',
+        (
+            '  <rect x="24" y="24" width="464" height="464" '
+            'rx="24" fill="none" stroke="#c5cfdb" stroke-width="3"/>'
+        ),
+        (
+            '  <text x="40" y="72" font-size="22" '
+            'font-family="Arial, sans-serif" fill="#415166">'
+            f'Panel {frame_index}</text>'
+        ),
+        (
+            '  <text x="40" y="120" font-size="16" '
+            'font-family="Arial, sans-serif" fill="#5f6f82">'
+            f'{scene}</text>'
+        ),
+        '  <circle cx="150" cy="270" r="54" fill="#d8e4f2"/>',
+        '  <circle cx="344" cy="270" r="54" fill="#f2dec7"/>',
+        (
+            '  <rect x="106" y="334" width="88" height="108" '
+            'rx="22" fill="#d8e4f2"/>'
+        ),
+        (
+            '  <rect x="300" y="334" width="88" height="108" '
+            'rx="22" fill="#f2dec7"/>'
+        ),
+        (
+            '  <path d="M88 180h160a18 18 0 0 1 18 18v48a18 18 '
+            '0 0 1-18 18h-90l-34 24 10-24H88a18 18 0 0 1-18-18v-48'
+            'a18 18 0 0 1 18-18z" fill="#ffffff" stroke="#9ba6b2" '
+            'stroke-width="3"/>'
+        ),
+        (
+            '  <path d="M264 120h160a18 18 0 0 1 18 18v48a18 18 '
+            '0 0 1-18 18h-84l-34 24 10-24h-52a18 18 0 0 1-18-18v-48'
+            'a18 18 0 0 1 18-18z" fill="#ffffff" stroke="#9ba6b2" '
+            'stroke-width="3"/>'
+        ),
+        '</svg>',
+    ]
+    svg = "\n".join(svg_lines)
+    return "data:image/svg+xml;utf8," + quote(svg)
 
 
 def fetch_article(
