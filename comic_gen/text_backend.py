@@ -83,6 +83,7 @@ def _get_generator(model_repo_id: str) -> Any:
         return _GENERATOR
 
     try:
+        import torch
         from transformers import pipeline
     except Exception as exc:
         raise TextGenerationError(
@@ -94,7 +95,8 @@ def _get_generator(model_repo_id: str) -> Any:
             "text-generation",
             model=model_repo_id,
             trust_remote_code=True,
-            device_map="auto",
+            torch_dtype=torch.float16,
+            device="cuda"  # Standard PyTorch routing that ZeroGPU protects
         )
     except Exception as exc:
         detail = f"{type(exc).__name__}: {exc}"

@@ -81,7 +81,10 @@ def _panel_image_src(panel: dict[str, Any]) -> tuple[str, str]:
     return backends.fallback_image_src(panel), "placeholder"
 
 
-def _panel_image_html(panel: dict[str, Any]) -> str:
+def _panel_image_html(
+    panel: dict[str, Any],
+    overlay_html: str = "",
+) -> str:
     image_src, _ = _panel_image_src(panel)
     image_tag = (
         "<img src='"
@@ -91,16 +94,26 @@ def _panel_image_html(panel: dict[str, Any]) -> str:
     return (
         "<div class='panel-media'>"
         f"{image_tag}"
+        f"{overlay_html}"
         "</div>"
     )
 
 
-def _overlay_debug_html(panel: dict[str, Any]) -> str:
+def _overlay_bubbles_html(
+    panel: dict[str, Any],
+    standalone: bool = False,
+) -> str:
     width = 512
     height = 512
+    container_class = "overlay-debug" if standalone else "overlay-layer"
+    canvas_class = (
+        "overlay-canvas overlay-canvas-debug"
+        if standalone
+        else "overlay-canvas"
+    )
     parts = [
-        "<div class='overlay-debug'>",
-        "<div class='overlay-canvas'>",
+        f"<div class='{container_class}'>",
+        f"<div class='{canvas_class}'>",
     ]
     dialogue = panel.get("dialogue", [])
     for index, bubble in enumerate(panel.get("bubbles", [])):
@@ -132,19 +145,22 @@ def _render_panels_html(
 ) -> str:
     cards = []
     for panel in document.get("panels", []):
-        image_html = _panel_image_html(panel)
+        composed_html = _panel_image_html(
+            panel,
+            _overlay_bubbles_html(panel),
+        )
         if debug_mode:
             cards.append(
                 (
                     "<div class='panel-card debug-card'>"
                     f"<h4>Panel {panel['frame_index']}</h4>"
                     "<div class='debug-row'>"
-                    "<div class='debug-label'>Raw image</div>"
-                    f"{image_html}"
+                    "<div class='debug-label'>Composed image + bubbles</div>"
+                    f"{composed_html}"
                     "</div>"
                     "<div class='debug-row'>"
                     "<div class='debug-label'>Overlay preview</div>"
-                    f"{_overlay_debug_html(panel)}"
+                    f"{_overlay_bubbles_html(panel, standalone=True)}"
                     "</div>"
                     "</div>"
                 )
@@ -154,7 +170,7 @@ def _render_panels_html(
         cards.append(
             (
                 "<div class='panel-card'>"
-                f"{image_html}"
+                f"{composed_html}"
                 "</div>"
             )
         )
@@ -167,7 +183,7 @@ def _render_transcript(document: dict[str, Any]) -> str:
 
     # Use enumerate to track if we are on the first panel or a later one
     for i, panel in enumerate(document.get("panels", [])):
-        # If it's the 2nd panel or later, inject an empty string for a blank line gap
+        # If it is the 2nd panel or later, insert a blank line gap.
         if i > 0:
             lines.append("")
 
