@@ -172,6 +172,7 @@ def _extract_json_object(raw_text: str) -> dict[str, Any]:
     try:
         parsed = json.loads(raw_text[start:end + 1])
     except json.JSONDecodeError as exc:
+        logger.info("INPUT to parse JSON: %s", raw_text[start:end + 1])
         raise UnifiedGenerationError("model output is not valid JSON") from exc
     if not isinstance(parsed, dict):
         raise UnifiedGenerationError("model output root must be object")
