@@ -122,72 +122,112 @@ def split_sentences(text: str) -> list[str]:
 
 
 def extract_json_object(raw_text: str) -> dict[str, Any]:
-    def _balanced_json_objects(text: str) -> list[str]:
-        objects: list[str] = []
-        start_idx = -1
-        depth = 0
-        in_string = False
-        escaped = False
-
-        for idx, char in enumerate(text):
-            if in_string:
-                if escaped:
-                    escaped = False
-                    continue
-                if char == "\\":
-                    escaped = True
-                elif char == '"':
-                    in_string = False
-                continue
-
-            if char == '"':
-                in_string = True
-            elif char == "{":
-                if depth == 0:
-                    start_idx = idx
-                depth += 1
-            elif char == "}" and depth > 0:
-                depth -= 1
-                if depth == 0 and start_idx != -1:
-                    objects.append(text[start_idx: idx + 1])
-                    start_idx = -1
-
-        return objects
-
-    candidates: list[str] = []
-    fenced_matches = re.findall(r"```(?:json)?\\s*([\\s\\S]*?)```", raw_text)
-    candidates.extend(
-        match.strip()
-        for match in fenced_matches
-        if match.strip()
-    )
-    candidates.append(raw_text)
-
-    decoder = json.JSONDecoder()
-    parse_errors: list[str] = []
-
-    for candidate in candidates:
-        for blob in _balanced_json_objects(candidate):
+    # If it's already a valid json object string, return it directly
+    try:
+        parsed = json.loads(raw_text.strip())
+        return parsed
+    except json.JSONDecodeError:
+        pass
+        
+    # If it used '=' instead of wrapping everything in a single object:
+    # We will capture each assignment block and wrap them inside a valid json container
+    sections = re.findall(r'(\w+)\s*=\s*([\[{].*?)(?=\n\w+\s*=|$)', raw_text, re.DOTALL)
+    
+    if sections:
+        json_dict = {}
+        for key, value in sections:
             try:
-                parsed, end_idx = decoder.raw_decode(blob)
-                if blob[end_idx:].strip():
-                    parse_errors.append("trailing_non_json_content")
-                    continue
-                if not isinstance(parsed, dict):
-                    parse_errors.append("root_not_object")
-                    continue
-                return parsed
-            except json.JSONDecodeError as exc:
-                context_start = max(0, exc.pos - 40)
-                context_end = min(len(blob), exc.pos + 40)
-                context = blob[context_start:context_end]
-                parse_errors.append(
-                    f"{exc.msg} at line {exc.lineno}, col {exc.colno}, "
-                    f"pos {exc.pos}; context={context!r}"
-                )
-
-    if "{" not in raw_text or "}" not in raw_text:
-        raise UnifiedGenerationError("model output missing JSON object")
-
-    logger.info("Failed JSON parse details: %s", " | ".join(parse_errors))
+                # Parse the individual Pythonic array/object string blocks safely
+                json_dict[key] = json.loads(value.strip())
+            except Exception:
+                # If individual parsing fails, fall back to string cleaning
+                continue
+        return json_dict
+        
     raise UnifiedGenerationError("model output is not valid JSON")
+
+
+# def extract_json_object(raw_text: str) -> dict[str, Any]:
+#     start = raw_text.find("{")
+#     end = raw_text.rfind("}")
+#     if start == -1 or end == -1 or end <= start:
+#         raise UnifiedGenerationError("model output missing JSON object")
+#     try:
+#         parsed = json.loads(raw_text[start:end + 1])
+#     except json.JSONDecodeError as exc:
+#         logger.info("INPUT to parse JSON: %s", raw_text[start:end + 1])
+#         raise UnifiedGenerationError("model output is not valid JSON") from exc
+#     if not isinstance(parsed, dict):
+#         raise UnifiedGenerationError("model output root must be object")
+#     return parsed 
+
+# def extract_json_object(raw_text: str) -> dict[str, Any]:
+#     def _balanced_json_objects(text: str) -> list[str]:
+#         objects: list[str] = []
+#         start_idx = -1
+#         depth = 0
+#         in_string = False
+#         escaped = False
+
+#         for idx, char in enumerate(text):
+#             if in_string:
+#                 if escaped:
+#                     escaped = False
+#                     continue
+#                 if char == "\\":
+#                     escaped = True
+#                 elif char == '"':
+#                     in_string = False
+#                 continue
+
+#             if char == '"':
+#                 in_string = True
+#             elif char == "{":
+#                 if depth == 0:
+#                     start_idx = idx
+#                 depth += 1
+#             elif char == "}" and depth > 0:
+#                 depth -= 1
+#                 if depth == 0 and start_idx != -1:
+#                     objects.append(text[start_idx: idx + 1])
+#                     start_idx = -1
+
+#         return objects
+
+#     candidates: list[str] = []
+#     fenced_matches = re.findall(r"```(?:json)?\\s*([\\s\\S]*?)```", raw_text)
+#     candidates.extend(
+#         match.strip()
+#         for match in fenced_matches
+#         if match.strip()
+#     )
+#     candidates.append(raw_text)
+
+#     decoder = json.JSONDecoder()
+#     parse_errors: list[str] = []
+
+#     for candidate in candidates:
+#         for blob in _balanced_json_objects(candidate):
+#             try:
+#                 parsed, end_idx = decoder.raw_decode(blob)
+#                 if blob[end_idx:].strip():
+#                     parse_errors.append("trailing_non_json_content")
+#                     continue
+#                 if not isinstance(parsed, dict):
+#                     parse_errors.append("root_not_object")
+#                     continue
+#                 return parsed
+#             except json.JSONDecodeError as exc:
+#                 context_start = max(0, exc.pos - 40)
+#                 context_end = min(len(blob), exc.pos + 40)
+#                 context = blob[context_start:context_end]
+#                 parse_errors.append(
+#                     f"{exc.msg} at line {exc.lineno}, col {exc.colno}, "
+#                     f"pos {exc.pos}; context={context!r}"
+#                 )
+
+#     if "{" not in raw_text or "}" not in raw_text:
+#         raise UnifiedGenerationError("model output missing JSON object")
+
+#     logger.info("Failed JSON parse details: %s", " | ".join(parse_errors))
+#     raise UnifiedGenerationError("model output is not valid JSON")
