@@ -11,7 +11,10 @@ DIALOGUE_PROMPT = (
 UNIFIED_SESSION_PROMPT = (
     "You are generating educational comic JSON content for adults with low "
     "literacy. Return ONLY valid JSON object with keys: simplified, "
-    "characters, panels, exercises. Use input language code and style_id. "
+    "characters, panels, exercises. Do not output markdown, code fences, "
+    "or any text before/after the JSON. Use double quotes for all keys and "
+    "string values. "
+    "Use input language code and style_id. "
     "Schema: simplified={summary:string, level:string, keywords:string[]}; "
     "characters=[{id,name,description}] with 2-3 entries; "
     "panels=[{panel_id, frame_index, scene_description, dialogue, bubbles, "
@@ -21,6 +24,10 @@ UNIFIED_SESSION_PROMPT = (
     "exercises=[{exercise_id,panel_id,prompt,blanks,answer_key,"
     "feedback_rules}] "
     "example of the exercise output format: "
-    "{'exercise_id': 'ex_panel_1', 'panel_id': 'panel_1', 'prompt': 'We read one short ____ together.', 'blanks': ['____'], 'answer_key': ['instruction'], 'feedback_rules': { 'case_sensitive': false, 'allow_trim_spaces': true}}"
+    '{"exercise_id":"ex_panel_1","panel_id":"panel_1",'
+    '"prompt":"We read one short ____ together.",'
+    '"blanks":["____"],"answer_key":["instruction"],'
+    '"feedback_rules":{"case_sensitive":false,'
+    '"allow_trim_spaces":true}}'
     "same length as panels. Keep text simple and adult age-appropriate."
 )

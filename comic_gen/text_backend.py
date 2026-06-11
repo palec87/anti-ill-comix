@@ -6,7 +6,7 @@ import os
 import re
 from typing import Any
 
-from .text_utils import _normalize_characters
+from .text_utils import _normalize_characters, extract_json_object
 from .errors import (
     ModelPipelineError,
     TextGenerationError,
@@ -89,7 +89,6 @@ def _get_generator(model_repo_id: str) -> Any:
 
     try:
         import torch
-        import spaces
         from transformers import pipeline
     except Exception as exc:
         raise TextGenerationError(
@@ -118,8 +117,8 @@ def _get_generator(model_repo_id: str) -> Any:
 def conditional_gpu_decorator(func):
     if not IS_LOCAL:
         import spaces
-        return spaces.GPU(func) # Wraps it with ZeroGPU when in production
-    return func # Passes through normally when working locally
+        return spaces.GPU(func)  # Wraps with ZeroGPU in production.
+    return func  # Passes through for local development.
 
 
 @conditional_gpu_decorator
@@ -146,11 +145,16 @@ def _generate_with_pipeline(
 
     generator = _get_generator(model_repo_id)
     try:
+        from transformers import GenerationConfig
+        gen_config_kwargs: dict[str, Any] = {
+            "max_new_tokens": max_new_tokens,
+            "do_sample": do_sample,
+        }
+        if do_sample:
+            gen_config_kwargs["temperature"] = temperature
         outputs = generator(
             prompt,
-            max_new_tokens=max_new_tokens,
-            do_sample=do_sample,
-            temperature=temperature,
+            generation_config=GenerationConfig(**gen_config_kwargs),
             return_full_text=False,
         )
     except Exception as exc:
@@ -166,21 +170,6 @@ def _generate_with_pipeline(
     if not isinstance(generated, str) or not generated.strip():
         raise TextGenerationError("invalid text generation output")
     return generated
-
-
-def _extract_json_object(raw_text: str) -> dict[str, Any]:
-    start = raw_text.find("{")
-    end = raw_text.rfind("}")
-    if start == -1 or end == -1 or end <= start:
-        raise UnifiedGenerationError("model output missing JSON object")
-    try:
-        parsed = json.loads(raw_text[start:end + 1])
-    except json.JSONDecodeError as exc:
-        logger.info("INPUT to parse JSON: %s", raw_text[start:end + 1])
-        raise UnifiedGenerationError("model output is not valid JSON") from exc
-    if not isinstance(parsed, dict):
-        raise UnifiedGenerationError("model output root must be object")
-    return parsed
 
 
 def _normalize_simplified(raw: Any) -> dict[str, Any]:
@@ -419,7 +408,7 @@ def generate_text_content_from_article(
         "Generated unified session text: %s",
         raw_text,
     )
-    payload = _extract_json_object(raw_text)
+    payload = extract_json_object(raw_text)
     logger.info("Extracted JSON payload for unified session: %s", payload)
 
     try:
