@@ -17,6 +17,7 @@ from .prompts import UNIFIED_SESSION_PROMPT
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
+IS_LOCAL = os.environ.get("LOCAL_DEV", "False") == "True"
 _GENERATOR: Any | None = None
 _GENERATOR_MODEL_ID = ""
 _INFERENCE_CLIENT: Any | None = None
@@ -84,6 +85,7 @@ def _get_generator(model_repo_id: str) -> Any:
 
     try:
         import torch
+        import spaces
         from transformers import pipeline
     except Exception as exc:
         raise TextGenerationError(
@@ -109,6 +111,14 @@ def _get_generator(model_repo_id: str) -> Any:
     return generator
 
 
+def conditional_gpu_decorator(func):
+    if not IS_LOCAL:
+        import spaces
+        return spaces.GPU(func) # Wraps it with ZeroGPU when in production
+    return func # Passes through normally when working locally
+
+
+@conditional_gpu_decorator
 def _generate_with_pipeline(
     prompt: str,
     model_repo_id: str,

@@ -1,6 +1,6 @@
 ---
 title: Anti Ill Comix
-emoji: 🖼
+emoji: 🧠
 colorFrom: purple
 colorTo: red
 sdk: gradio

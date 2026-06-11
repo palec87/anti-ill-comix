@@ -3,6 +3,7 @@ accelerate
 diffusers
 invisible_watermark
 python-dotenv
+spaces
 torch
 transformers
 xformers
