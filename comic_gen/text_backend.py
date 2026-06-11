@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from outlines import models, generate
+from outlines import models
+import outlines.generate as generate  # 👈 Explicitly import the submodule
 import logging
 import os
 import re
