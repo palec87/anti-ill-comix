@@ -10,7 +10,7 @@ from .text_backend import (
     generate_session_fields_from_article,
     _normalize_model_fields,
 )
-from .deterministic_backend import apply_overlay, deterministic_pipeline
+from .backends import deterministic_pipeline
 from .trace import add_trace
 from .errors import ModelPipelineError
 
@@ -90,7 +90,6 @@ def generate_story_pipeline(
         )
         deterministic_pipeline(
             document,
-            panel_count=panel_count,
         )
         return
 
@@ -134,7 +133,6 @@ def generate_story_pipeline(
             options,
             strict_mode=False,
         )
-        apply_overlay(document)
         add_trace(
             document,
             "step6_exercises",
@@ -160,5 +158,4 @@ def generate_story_pipeline(
         )
         deterministic_pipeline(
             document,
-            panel_count=panel_count,
         )
