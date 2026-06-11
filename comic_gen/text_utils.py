@@ -9,12 +9,64 @@ from datetime import datetime, timezone
 import xml.etree.ElementTree as ET
 from .errors import UnifiedGenerationError
 
+from pydantic import BaseModel, Field
+from typing import List
+
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
+
+# 1. Define your exact structure using Pydantic
+class Character(BaseModel):
+    id: str
+    name: str
+    description: str
+
+class Bubble(BaseModel):
+    bbox_px: List[int] = Field(..., description="[x, y, w, h] elements")
+
+class Dialogue(BaseModel):
+    character_id: str
+    text: str
+
+class Render(BaseModel):
+    image_path: str
+    overlay_applied: bool
+
+class Panel(BaseModel):
+    panel_id: str
+    frame_index: int
+    scene_description: str
+    dialogue: List[Dialogue]
+    bubbles: List[Bubble]
+    render: Render
+
+class ExerciseRules(BaseModel):
+    case_sensitive: bool
+    allow_trim_spaces: bool
+
+class Exercise(BaseModel):
+    exercise_id: str
+    panel_id: str
+    prompt: str
+    blanks: List[str]
+    answer_key: List[str]
+    feedback_rules: ExerciseRules
+
+class SimplifiedData(BaseModel):
+    summary: str
+    level: str
+    keywords: List[str]
+
+# The master schema matching your prompt
+class ComicResponse(BaseModel):
+    simplified: SimplifiedData
+    characters: List[Character]
+    panels: List[Panel]
+    exercises: List[Exercise]
 
 
 def load_json_article(language: str) -> dict[str, str]:

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import json
+import outlines
 import logging
 import os
 import re
 from typing import Any
 
-from .text_utils import _normalize_characters, extract_json_object
+from .text_utils import _normalize_characters, extract_json_object, ComicResponse
 from .errors import (
     ModelPipelineError,
     TextGenerationError,
@@ -143,34 +143,41 @@ def _generate_with_pipeline(
                 exc,
             )
 
-    generator = _get_generator(model_repo_id)
-    try:
-        from transformers import GenerationConfig
-        gen_config_kwargs: dict[str, Any] = {
-            "max_new_tokens": max_new_tokens,
-            "do_sample": do_sample,
-        }
-        if do_sample:
-            gen_config_kwargs["temperature"] = temperature
-        outputs = generator(
-            [{"role": "user", "content": prompt}],
-            generation_config=GenerationConfig(**gen_config_kwargs),
-            response_format={"type": "json_object"},
-            return_full_text=False,
-        )
-    except Exception as exc:
-        detail = f"{type(exc).__name__}: {exc}"
-        raise TextGenerationError(
-            f"text generation failed (pipeline), {model_repo_id}, {detail}"
-        ) from exc
+    model = outlines.models.transformers(model_repo_id, device="cuda")
+    structured_generator = outlines.generate.json(model, ComicResponse)
+    generated = structured_generator(UNIFIED_SESSION_PROMPT)
+    json_string = generated.model_dump_json()
+    logger.info("Generated unified session text (structured): %s", json_string)
+    return json_string
+    # generator = _get_generator(model_repo_id)
+    # try:
+    #     from transformers import GenerationConfig
+    #     gen_config_kwargs: dict[str, Any] = {
+    #         "max_new_tokens": max_new_tokens,
+    #         "do_sample": do_sample,
+    #     }
+    #     if do_sample:
+    #         gen_config_kwargs["temperature"] = temperature
+    #     outputs = generator(
+    #         [{"role": "user", "content": prompt}],
+    #         generation_config=GenerationConfig(**gen_config_kwargs),
+    #         response_format={"type": "json_object"},
+    #         return_full_text=False,
+    #     )
+    # except Exception as exc:
+    #     detail = f"{type(exc).__name__}: {exc}"
+    #     raise TextGenerationError(
+    #         f"text generation failed (pipeline), {model_repo_id}, {detail}"
+    #     ) from exc
 
-    if not outputs:
-        raise TextGenerationError("empty text generation output")
+    # if not outputs:
+    #     raise TextGenerationError("empty text generation output")
 
-    generated = outputs[0].get("generated_text", "")
-    if not isinstance(generated, str) or not generated.strip():
-        raise TextGenerationError("invalid text generation output")
-    return generated
+    # generated = outputs[0].get("generated_text", "")
+    # if not isinstance(generated, str) or not generated.strip():
+    #     raise TextGenerationError("invalid text generation output")
+    
+    # return generated
 
 
 def _normalize_simplified(raw: Any) -> dict[str, Any]:
