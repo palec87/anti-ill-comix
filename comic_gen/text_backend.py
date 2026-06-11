@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import outlines
+from outlines import models, generate
 import logging
 import os
 import re
@@ -143,8 +143,8 @@ def _generate_with_pipeline(
                 exc,
             )
 
-    model = outlines.models.transformers(model_repo_id, device="cuda")
-    structured_generator = outlines.generate.json(model, ComicResponse)
+    model = models.transformers(model_repo_id, device="cuda")
+    structured_generator = generate.json(model, ComicResponse)
     generated = structured_generator(UNIFIED_SESSION_PROMPT)
     json_string = generated.model_dump_json()
     logger.info("Generated unified session text (structured): %s", json_string)
