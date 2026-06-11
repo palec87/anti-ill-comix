@@ -124,7 +124,7 @@ def _overlay_bubbles_html(
         bbox = bubble.get("bbox_px", [0, 0, 120, 60])
         x, y, box_w, box_h = bbox
         line = dialogue[index] if index < len(dialogue) else {}
-        char_id = html.escape(line.get("character_id", "narrator"))
+        # char_id = html.escape(line.get("character_id", "narrator"))
         text = html.escape(line.get("text", ""))
         left = max(0.0, min(100.0, (x / width) * 100))
         top = max(0.0, min(100.0, (y / height) * 100))
@@ -134,7 +134,7 @@ def _overlay_bubbles_html(
             "<div class='overlay-bubble' "
             f"style='left:{left:.2f}%;top:{top:.2f}%;"
             f"width:{bubble_w:.2f}%;height:{bubble_h:.2f}%;'>"
-            f"<div class='overlay-speaker'>{char_id}</div>"
+            # f"<div class='overlay-speaker'>{char_id}</div>"
             f"<div class='overlay-line'>{text}</div>"
             "</div>"
         )
