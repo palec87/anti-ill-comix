@@ -153,7 +153,7 @@ def _generate_with_pipeline(
         if do_sample:
             gen_config_kwargs["temperature"] = temperature
         outputs = generator(
-            prompt,
+            [{"role": "user", "content": prompt}],
             generation_config=GenerationConfig(**gen_config_kwargs),
             return_full_text=False,
         )
