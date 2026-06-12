@@ -235,7 +235,7 @@ def _generate_panel_image(
         "ok",
         f"{panel_id} image saved to {out_path}",
     )
-    return str(out_path), chosen_seed, device
+    return str(out_path), chosen_seed, 'cuda'
 
 
 def generate_image_panels(
