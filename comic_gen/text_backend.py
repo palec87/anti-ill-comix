@@ -147,7 +147,7 @@ def _generate_with_pipeline(
                 exc,
             )
 
-    model = from_transformers(model_repo_id, device="cuda")
+    model = from_transformers(model_repo_id)
     structured_generator = Generator.json(model, ComicResponse)
     generated = structured_generator(UNIFIED_SESSION_PROMPT)
     json_string = generated.model_dump_json()
