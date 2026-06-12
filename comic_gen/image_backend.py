@@ -126,7 +126,7 @@ def _generate_panel_image(
     use_serverless_api: bool,
 ) -> tuple[str, int, str]:
     chosen_seed = random.randint(0, MAX_SEED) if randomize_seed else seed
-
+    logger.info(f'\n\nIMAGE gen prompt:\n {prompt}\n\n')
     if use_serverless_api:
         out_path, provider = _generate_panel_image_serverless(
             prompt=prompt,
@@ -150,16 +150,11 @@ def _generate_panel_image(
     import torch
     from diffusers import DiffusionPipeline
 
-    # switch to "mps" for apple devices
     pipe = DiffusionPipeline.from_pretrained(
         model_repo_id,
-        # "black-forest-labs/FLUX.1-schnell",
-        dtype=torch.float16,
         token=os.environ.get("HF_TOKEN"),
-        device="cuda",
     )
     pipe.to(device="cuda", dtype=torch.float16)
-    # image = pipe(prompt=prompt).images[0]
 
     image = pipe(
         prompt=prompt,
