@@ -57,34 +57,34 @@ def _get_inference_client() -> Any:
     return _INFERENCE_CLIENT
 
 
-def _get_generator(model_repo_id: str) -> tuple[Any, Any, str]:
-    global _GENERATOR, _GENERATOR_MODEL_ID
+# def _get_generator(model_repo_id: str) -> tuple[Any, Any, str]:
+#     global _GENERATOR, _GENERATOR_MODEL_ID
 
-    if _GENERATOR is not None and _GENERATOR_MODEL_ID == model_repo_id:
-        return _GENERATOR
+#     if _GENERATOR is not None and _GENERATOR_MODEL_ID == model_repo_id:
+#         return _GENERATOR
 
-    try:
-        import torch
-        from diffusers import DiffusionPipeline
-    except Exception as exc:
-        raise ImageGenerationError(
-            f"Diffusers runtime unavailable: {exc}"
-        ) from exc
+#     try:
+#         import torch
+#         from diffusers import DiffusionPipeline
+#     except Exception as exc:
+#         raise ImageGenerationError(
+#             f"Diffusers runtime unavailable: {exc}"
+#         ) from exc
 
-    try:
-        generator = DiffusionPipeline.from_pretrained(
-            model_repo_id,
-            dtype=torch.bfloat16,
-        )
-        pipe = pipe.to(device)
-    except Exception as exc:
-        raise ImageGenerationError(
-            f"Failed to load model {model_repo_id}: {exc}"
-        ) from exc
+#     try:
+#         generator = DiffusionPipeline.from_pretrained(
+#             model_repo_id,
+#             dtype=torch.bfloat16,
+#         )
+#         pipe = pipe.to(device)
+#     except Exception as exc:
+#         raise ImageGenerationError(
+#             f"Failed to load model {model_repo_id}: {exc}"
+#         ) from exc
 
-    _GENERATOR = generator
-    _GENERATOR_MODEL_ID = model_repo_id
-    return generator
+#     _GENERATOR = generator
+#     _GENERATOR_MODEL_ID = model_repo_id
+#     return generator
 
 
 def _build_output_path(session_id: str, panel_id: str) -> Path:

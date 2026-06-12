@@ -85,37 +85,37 @@ def _generate_with_serverless_api(
     return generated
 
 
-def _get_generator(model_repo_id: str) -> Any:
-    global _GENERATOR, _GENERATOR_MODEL_ID
+# def _get_generator(model_repo_id: str) -> Any:
+#     global _GENERATOR, _GENERATOR_MODEL_ID
 
-    if _GENERATOR is not None and _GENERATOR_MODEL_ID == model_repo_id:
-        return _GENERATOR
+#     if _GENERATOR is not None and _GENERATOR_MODEL_ID == model_repo_id:
+#         return _GENERATOR
 
-    try:
-        import torch
-        from transformers import pipeline
-    except Exception as exc:
-        raise TextGenerationError(
-            "transformers import failed"
-        ) from exc
+#     try:
+#         import torch
+#         from transformers import pipeline
+#     except Exception as exc:
+#         raise TextGenerationError(
+#             "transformers import failed"
+#         ) from exc
 
-    try:
-        generator = pipeline(
-            "text-generation",
-            model=model_repo_id,
-            trust_remote_code=True,
-            dtype=torch.float16,
-            device="cuda"  # Standard PyTorch routing that ZeroGPU protects
-        )
-    except Exception as exc:
-        detail = f"{type(exc).__name__}: {exc}"
-        raise TextGenerationError(
-            f"failed to load text model '{model_repo_id}' ({detail})"
-        ) from exc
+#     try:
+#         generator = pipeline(
+#             "text-generation",
+#             model=model_repo_id,
+#             trust_remote_code=True,
+#             dtype=torch.float16,
+#             device="cuda"  # Standard PyTorch routing that ZeroGPU protects
+#         )
+#     except Exception as exc:
+#         detail = f"{type(exc).__name__}: {exc}"
+#         raise TextGenerationError(
+#             f"failed to load text model '{model_repo_id}' ({detail})"
+#         ) from exc
 
-    _GENERATOR = generator
-    _GENERATOR_MODEL_ID = model_repo_id
-    return generator
+#     _GENERATOR = generator
+#     _GENERATOR_MODEL_ID = model_repo_id
+#     return generator
 
 
 def conditional_gpu_decorator(func):
