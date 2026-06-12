@@ -104,7 +104,7 @@ def _get_generator(model_repo_id: str) -> Any:
             "text-generation",
             model=model_repo_id,
             trust_remote_code=True,
-            torch_dtype=torch.float16,
+            dtype=torch.float16,
             device="cuda"  # Standard PyTorch routing that ZeroGPU protects
         )
     except Exception as exc:

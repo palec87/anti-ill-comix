@@ -57,13 +57,11 @@ def _get_inference_client() -> Any:
     return _INFERENCE_CLIENT
 
 
-def _get_pipeline(model_repo_id: str) -> tuple[Any, Any, str]:
-    global _PIPELINE
-    global _PIPELINE_MODEL_ID
-    global _DEVICE
+def _get_generator(model_repo_id: str) -> tuple[Any, Any, str]:
+    global _GENERATOR, _GENERATOR_MODEL_ID
 
-    if _PIPELINE is not None and _PIPELINE_MODEL_ID == model_repo_id:
-        return _PIPELINE, __import__("torch"), _DEVICE or "cpu"
+    if _GENERATOR is not None and _GENERATOR_MODEL_ID == model_repo_id:
+        return _GENERATOR
 
     try:
         import torch
@@ -73,13 +71,10 @@ def _get_pipeline(model_repo_id: str) -> tuple[Any, Any, str]:
             f"Diffusers runtime unavailable: {exc}"
         ) from exc
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    torch_dtype = torch.float16 if device == "cuda" else torch.float32
-
     try:
-        pipe = DiffusionPipeline.from_pretrained(
+        generator = DiffusionPipeline.from_pretrained(
             model_repo_id,
-            torch_dtype=torch_dtype,
+            dtype=torch.bfloat16,
         )
         pipe = pipe.to(device)
     except Exception as exc:
@@ -87,10 +82,9 @@ def _get_pipeline(model_repo_id: str) -> tuple[Any, Any, str]:
             f"Failed to load model {model_repo_id}: {exc}"
         ) from exc
 
-    _PIPELINE = pipe
-    _PIPELINE_MODEL_ID = model_repo_id
-    _DEVICE = device
-    return _PIPELINE, torch, device
+    _GENERATOR = generator
+    _GENERATOR_MODEL_ID = model_repo_id
+    return generator
 
 
 def _build_output_path(session_id: str, panel_id: str) -> Path:
@@ -148,6 +142,14 @@ def _generate_panel_image_serverless(
     return str(out_path), "serverless"
 
 
+def conditional_gpu_decorator(func):
+    if not IS_LOCAL:
+        import spaces
+        return spaces.GPU(func)  # Wraps with ZeroGPU in production.
+    return func  # Passes through for local development.
+
+
+@conditional_gpu_decorator
 def _generate_panel_image(
     *,
     document: dict[str, Any],
@@ -186,30 +188,37 @@ def _generate_panel_image(
         )
         return out_path, chosen_seed, provider
 
-    pipe, torch, device = _get_pipeline(model_repo_id)
-    generator = torch.Generator(device="cpu").manual_seed(chosen_seed)
+    import torch
+    from diffusers import DiffusionPipeline
 
-    try:
-        image = pipe(
-            prompt=prompt,
-            negative_prompt=negative_prompt,
-            guidance_scale=guidance_scale,
-            num_inference_steps=num_inference_steps,
-            width=width,
-            height=height,
-            generator=generator,
-        ).images[0]
+    # switch to "mps" for apple devices
+    pipe = DiffusionPipeline.from_pretrained("black-forest-labs/FLUX.2-klein-4B", dtype=torch.bfloat16, device_map="cuda")
+    image = pipe(image=input_image, prompt=prompt).images[0]
+    
+    # pipe, torch, device = _get_generator(model_repo_id)
+    # generator = torch.Generator(device="cpu").manual_seed(chosen_seed)
 
-    except Exception as exc:
-        add_trace(
-            document,
-            "step4_image_generate",
-            "error",
-            f"Inference failed for {panel_id}: {exc}",
-        )
-        raise ImageGenerationError(
-            f"Inference failed for {panel_id}: {exc}"
-        ) from exc
+    # try:
+    #     image = pipe(
+    #         prompt=prompt,
+    #         negative_prompt=negative_prompt,
+    #         guidance_scale=guidance_scale,
+    #         num_inference_steps=num_inference_steps,
+    #         width=width,
+    #         height=height,
+    #         generator=generator,
+    #     ).images[0]
+
+    # except Exception as exc:
+    #     add_trace(
+    #         document,
+    #         "step4_image_generate",
+    #         "error",
+    #         f"Inference failed for {panel_id}: {exc}",
+    #     )
+    #     raise ImageGenerationError(
+    #         f"Inference failed for {panel_id}: {exc}"
+    #     ) from exc
 
     out_path = _build_output_path(session_id, panel_id)
     image.save(out_path)
