@@ -10,7 +10,7 @@ DIALOGUE_PROMPT = (
 
 UNIFIED_SESSION_PROMPT = (
     "### Role and Objective\n"
-    "Generate educational comic book content based on the 'article_fulltext' from {user_input_source_material}"
+    "Generate educational comic book content based on the 'article_fulltext' from user_input_source_material"
     "tailored for adults with low literacy skills. Keep the vocabulary accessible but "
     "age-appropriate (avoid childish topics).\n\n"
     
@@ -18,6 +18,7 @@ UNIFIED_SESSION_PROMPT = (
     "- Return ONLY a valid JSON object. Do not wrap it in markdown code blocks or ```json fences.\n"
     "- Do NOT output any conversational text before or after the JSON structure.\n"
     "- Use strict double quotes (\") for all keys and string values.\n"
+    "- Generate exactly 3 panels.\n"
     "- Length of the 'panels' list must match the length of the 'exercises' list.\n"
     "- For each panel_id, there needs to be exactly one exercise in the 'exercises' list.\n"
     "- There can be 1-3 characters.\n\n"
