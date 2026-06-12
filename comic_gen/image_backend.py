@@ -192,8 +192,13 @@ def _generate_panel_image(
     from diffusers import DiffusionPipeline
 
     # switch to "mps" for apple devices
-    pipe = DiffusionPipeline.from_pretrained("black-forest-labs/FLUX.2-klein-4B", dtype=torch.bfloat16, device_map="cuda")
-    image = pipe(image=input_image, prompt=prompt).images[0]
+    pipe = DiffusionPipeline.from_pretrained(
+        model_repo_id,
+        # "black-forest-labs/FLUX.1-schnell",
+        dtype=torch.bfloat16,
+        device_map="cuda",
+    )
+    image = pipe(prompt=prompt).images[0]
 
     # pipe, torch, device = _get_generator(model_repo_id)
     # generator = torch.Generator(device="cpu").manual_seed(chosen_seed)
