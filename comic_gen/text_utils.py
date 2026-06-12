@@ -160,9 +160,9 @@ def _normalize_characters(raw: Any) -> list[dict[str, str]]:
         )
         if len(normalized) == 3:
             break
-    if len(normalized) < 2:
+    if len(normalized) < 1:
         raise UnifiedGenerationError(
-            "characters must include at least 2 entries"
+            "characters must include at least 1 entry"
         )
     return normalized
 

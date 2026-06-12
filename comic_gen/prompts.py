@@ -4,7 +4,7 @@ SIMPLIFICATION_PROMPT = (
 )
 
 DIALOGUE_PROMPT = (
-    "Convert summary into short character dialogue for 3-5 comic panels. "
+    "Convert summary into short character dialogue for 3 comic panels. "
     "Each speech line should fit a small bubble."
 )
 
@@ -18,7 +18,8 @@ UNIFIED_SESSION_PROMPT = (
     "- Return ONLY a valid JSON object. Do not wrap it in markdown code blocks or ```json fences.\n"
     "- Do NOT output any conversational text before or after the JSON structure.\n"
     "- Use strict double quotes (\") for all keys and string values.\n"
-    "- Maintain exact consistency: the 'exercises' list length must exactly match the 'panels' list length.\n\n"
+    "- Maintain exact consistency: the 'exercises' list length must exactly match the 'panels' list length.\n"
+    "- There can be 1-3 characters.\n\n"
     
     "### Context Parameters\n"
     "- Target Language Code: {language_code}\n"
