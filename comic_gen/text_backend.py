@@ -418,7 +418,7 @@ def generate_text_content_from_article(
         raw_text = _generate_with_pipeline(
             prompt,
             model_repo_id=model_repo_id,
-            max_new_tokens=1600,
+            max_new_tokens=2048,
             do_sample=False,
             temperature=0.1,
         )
