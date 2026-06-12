@@ -1,13 +1,16 @@
 from __future__ import annotations
 
-from outlines import models
-import outlines.generate as generate  # 👈 Explicitly import the submodule
+from outlines import Generator, from_transformers
 import logging
 import os
 import re
 from typing import Any
 
-from .text_utils import _normalize_characters, extract_json_object, ComicResponse
+from .text_utils import (
+    _normalize_characters,
+    extract_json_object,
+    ComicResponse,
+)
 from .errors import (
     ModelPipelineError,
     TextGenerationError,
@@ -144,8 +147,8 @@ def _generate_with_pipeline(
                 exc,
             )
 
-    model = models.transformers(model_repo_id, device="cuda")
-    structured_generator = generate.json(model, ComicResponse)
+    model = from_transformers(model_repo_id, device="cuda")
+    structured_generator = Generator.json(model, ComicResponse)
     generated = structured_generator(UNIFIED_SESSION_PROMPT)
     json_string = generated.model_dump_json()
     logger.info("Generated unified session text (structured): %s", json_string)
