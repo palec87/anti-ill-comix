@@ -158,7 +158,8 @@ def _generate_with_pipeline(
     model = from_transformers(hf_model, hf_tokenizer)
     structured_generator = Generator.json(model, ComicResponse)
     generated = structured_generator(UNIFIED_SESSION_PROMPT)
-    json_string = generated.model_dump_json()
+    validated = ComicResponse.model_validate_json(generated)
+    json_string = validated.model_dump_json()
     logger.info("Generated unified session text (structured): %s", json_string)
     return json_string
     # generator = _get_generator(model_repo_id)
