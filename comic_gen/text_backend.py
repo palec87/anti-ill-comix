@@ -146,8 +146,16 @@ def _generate_with_pipeline(
                 "Serverless API failed; falling back to local pipeline: %s",
                 exc,
             )
+    import transformers
+    import torch
+    hf_model = transformers.AutoModelForCausalLM.from_pretrained(
+        model_repo_id, 
+        torch_dtype=torch.float16, 
+        device_map="cuda"
+    )
+    hf_tokenizer = transformers.AutoTokenizer.from_pretrained(model_repo_id)
 
-    model = from_transformers(model_repo_id)
+    model = from_transformers(hf_model, hf_tokenizer)
     structured_generator = Generator.json(model, ComicResponse)
     generated = structured_generator(UNIFIED_SESSION_PROMPT)
     json_string = generated.model_dump_json()
