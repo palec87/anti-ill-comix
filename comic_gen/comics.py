@@ -8,8 +8,8 @@ from .text_backend import (
     TextGenerationError,
     UnifiedGenerationError,
     generate_text_content_from_article,
-    _normalize_model_fields,
 )
+from .text_utils import _normalize_model_fields
 from .backends import deterministic_pipeline
 from .trace import add_trace
 from .errors import ModelPipelineError

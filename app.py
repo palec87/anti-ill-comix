@@ -255,8 +255,6 @@ def generate_strip(
             "ok",
             "Selectors and panel routes prepared",
         )
-        trace.add_trace(document, "text_generation_output_test", 'ok',
-                        f'Text generation output trace test: {language}')
         session.validate_or_raise(document)
     except ValidationError as exc:
         trace.add_trace(document, "validation", "error", str(exc))

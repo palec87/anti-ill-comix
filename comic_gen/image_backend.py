@@ -57,36 +57,6 @@ def _get_inference_client() -> Any:
     return _INFERENCE_CLIENT
 
 
-# def _get_generator(model_repo_id: str) -> tuple[Any, Any, str]:
-#     global _GENERATOR, _GENERATOR_MODEL_ID
-
-#     if _GENERATOR is not None and _GENERATOR_MODEL_ID == model_repo_id:
-#         return _GENERATOR
-
-#     try:
-#         import torch
-#         from diffusers import DiffusionPipeline
-#     except Exception as exc:
-#         raise ImageGenerationError(
-#             f"Diffusers runtime unavailable: {exc}"
-#         ) from exc
-
-#     try:
-#         generator = DiffusionPipeline.from_pretrained(
-#             model_repo_id,
-#             dtype=torch.bfloat16,
-#         )
-#         pipe = pipe.to(device)
-#     except Exception as exc:
-#         raise ImageGenerationError(
-#             f"Failed to load model {model_repo_id}: {exc}"
-#         ) from exc
-
-#     _GENERATOR = generator
-#     _GENERATOR_MODEL_ID = model_repo_id
-#     return generator
-
-
 def _build_output_path(session_id: str, panel_id: str) -> Path:
     out_dir = Path(tempfile.gettempdir()) / "anti_ill_comix" / session_id
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -116,17 +86,6 @@ def _generate_panel_image_serverless(
             guidance_scale=guidance_scale,
             num_inference_steps=num_inference_steps,
         )
-    except TypeError:
-        # Some HF providers accept a narrower argument set; retry minimally.
-        try:
-            image = client.text_to_image(
-                prompt=prompt,
-                model=model_repo_id,
-            )
-        except Exception as exc:
-            raise ImageGenerationError(
-                f"Serverless inference failed for {panel_id}: {exc}"
-            ) from exc
     except Exception as exc:
         raise ImageGenerationError(
             f"Serverless inference failed for {panel_id}: {exc}"
@@ -200,32 +159,17 @@ def _generate_panel_image(
         device="cuda",
     )
     pipe.to(device="cuda", dtype=torch.float16)
-    image = pipe(prompt=prompt).images[0]
+    # image = pipe(prompt=prompt).images[0]
 
-    # pipe, torch, device = _get_generator(model_repo_id)
-    # generator = torch.Generator(device="cpu").manual_seed(chosen_seed)
-
-    # try:
-    #     image = pipe(
-    #         prompt=prompt,
-    #         negative_prompt=negative_prompt,
-    #         guidance_scale=guidance_scale,
-    #         num_inference_steps=num_inference_steps,
-    #         width=width,
-    #         height=height,
-    #         generator=generator,
-    #     ).images[0]
-
-    # except Exception as exc:
-    #     add_trace(
-    #         document,
-    #         "step4_image_generate",
-    #         "error",
-    #         f"Inference failed for {panel_id}: {exc}",
-    #     )
-    #     raise ImageGenerationError(
-    #         f"Inference failed for {panel_id}: {exc}"
-    #     ) from exc
+    image = pipe(
+        prompt=prompt,
+        model=model_repo_id,
+        negative_prompt=negative_prompt,
+        width=width,
+        height=height,
+        guidance_scale=guidance_scale,
+        num_inference_steps=num_inference_steps,
+    ).images[0]
 
     out_path = _build_output_path(session_id, panel_id)
     image.save(out_path)
