@@ -18,7 +18,7 @@ UNIFIED_SESSION_PROMPT = (
     "- Return ONLY a valid JSON object. Do not wrap it in markdown code blocks or ```json fences.\n"
     "- Do NOT output any conversational text before or after the JSON structure.\n"
     "- Use strict double quotes (\") for all keys and string values.\n"
-    "- Maintain exact consistency: the 'exercises' list length must exactly match the 'panels' list length.\n"
+    "- Maintain exact consistency: for each panel_id, there needs to be exactly one exercise in the 'exercises' list.\n"
     "- There can be 1-3 characters.\n\n"
     
     "### Context Parameters\n"
