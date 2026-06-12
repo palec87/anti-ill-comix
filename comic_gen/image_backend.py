@@ -196,6 +196,7 @@ def _generate_panel_image(
         model_repo_id,
         # "black-forest-labs/FLUX.1-schnell",
         dtype=torch.bfloat16,
+        token=os.environ.get("HF_TOKEN"),
         device_map="cuda",
     )
     image = pipe(prompt=prompt).images[0]
