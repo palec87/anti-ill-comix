@@ -195,10 +195,11 @@ def _generate_panel_image(
     pipe = DiffusionPipeline.from_pretrained(
         model_repo_id,
         # "black-forest-labs/FLUX.1-schnell",
-        dtype=torch.bfloat16,
+        dtype=torch.float16,
         token=os.environ.get("HF_TOKEN"),
-        device_map="cuda",
+        device="cuda",
     )
+    pipe.to(device="cuda", dtype=torch.float16)
     image = pipe(prompt=prompt).images[0]
 
     # pipe, torch, device = _get_generator(model_repo_id)
