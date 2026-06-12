@@ -156,7 +156,7 @@ def _generate_with_pipeline(
     hf_tokenizer = transformers.AutoTokenizer.from_pretrained(model_repo_id)
 
     model = from_transformers(hf_model, hf_tokenizer)
-    structured_generator = Generator.json(model, ComicResponse)
+    structured_generator = Generator(model, ComicResponse)
     generated = structured_generator(UNIFIED_SESSION_PROMPT)
     validated = ComicResponse.model_validate_json(generated)
     json_string = validated.model_dump_json()
