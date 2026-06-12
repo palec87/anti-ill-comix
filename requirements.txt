@@ -1,10 +1,10 @@
-gradio
+gradio>=4.44,<6
 accelerate
 diffusers
 invisible_watermark
-outlines
+outlines>=1.3
 python-dotenv
 spaces
-torch
-transformers
+torch>=2.0.0
+transformers>=5.0.0
 xformers
