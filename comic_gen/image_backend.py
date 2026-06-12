@@ -15,9 +15,9 @@ from .trace import add_trace
 MAX_SEED = 2**31 - 1
 logger = logging.getLogger(__name__)
 
-_PIPELINE: Any | None = None
-_PIPELINE_MODEL_ID: str | None = None
-_DEVICE: str | None = None
+IS_LOCAL = os.environ.get("LOCAL_DEV", "False") == "True"
+_GENERATOR: Any | None = None
+_GENERATOR_MODEL_ID = ""
 _INFERENCE_CLIENT: Any | None = None
 
 
@@ -194,7 +194,7 @@ def _generate_panel_image(
     # switch to "mps" for apple devices
     pipe = DiffusionPipeline.from_pretrained("black-forest-labs/FLUX.2-klein-4B", dtype=torch.bfloat16, device_map="cuda")
     image = pipe(image=input_image, prompt=prompt).images[0]
-    
+
     # pipe, torch, device = _get_generator(model_repo_id)
     # generator = torch.Generator(device="cpu").manual_seed(chosen_seed)
 
