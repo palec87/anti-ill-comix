@@ -236,9 +236,14 @@ def _generate_panel_image(
     import torch
     from diffusers import DiffusionPipeline
 
+    token = os.environ.get("HF_TOKEN", "").strip()
+    if not token:
+        raise ImageGenerationError(
+            "HF_TOKEN is required for SPACES image gen"
+        )
     pipe = DiffusionPipeline.from_pretrained(
         model_repo_id,
-        token=os.environ.get("HF_TOKEN"),
+        token=token,
     )
     pipe.to(device="cuda", dtype=torch.float16)
 
