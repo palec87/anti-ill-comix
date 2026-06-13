@@ -40,6 +40,7 @@ LANGUAGE_OPTIONS = {
     "Deutsch": "de",
 }
 
+_VERSION = 0.1
 STYLE_OPTIONS = ["minimal", "newspaper", "watercolor", "retro"]
 MAX_SEED = 2**31 - 1
 MAX_IMAGE_SIZE = 512
@@ -388,7 +389,7 @@ with gr.Blocks() as demo:
         gr.Markdown(
             (
                 "Turn international news into simple comic practice "
-                "for adult reading and writing."
+                f"for adult reading and writing. {_VERSION}"
             )
         )
 
