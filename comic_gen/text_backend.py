@@ -3,7 +3,6 @@ from __future__ import annotations
 from outlines import Generator, from_transformers
 import logging
 import os
-import re
 from typing import Any
 
 from .text_utils import (
@@ -128,7 +127,7 @@ def _generate_with_pipeline(
     model = from_transformers(hf_model, hf_tokenizer)
     structured_generator = Generator(model, ComicResponse)
     generated = structured_generator(
-        UNIFIED_SESSION_PROMPT,
+        prompt,
         max_new_tokens=max_new_tokens,
         do_sample=do_sample,
         temperature=temperature,
@@ -153,12 +152,14 @@ def generate_text_content_from_article(
 
     target_count = max(3, min(5, panel_count))
     prompt = (
-        f"{UNIFIED_SESSION_PROMPT}\n"
-        f"language={language}\n"
-        f"style_id={style_id}\n"
-        f"panel_count={target_count}\n"
-        f"article_title={title}\n"
-        f"article_fulltext={fulltext}\n"
+        UNIFIED_SESSION_PROMPT
+        .replace("{language}", language)
+        .replace("{style_id}", style_id)
+        .replace("{panel_count}", str(target_count))
+        .replace(
+            "{user_input_source_material}",
+            f"article_title={title}\narticle_fulltext={fulltext}",
+        )
     )
     try:
         raw_text = _generate_with_pipeline(

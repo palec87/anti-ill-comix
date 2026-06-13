@@ -18,13 +18,13 @@ UNIFIED_SESSION_PROMPT = (
     "- Return ONLY a valid JSON object. Do not wrap it in markdown code blocks or ```json fences.\n"
     "- Do NOT output any conversational text before or after the JSON structure.\n"
     "- Use strict double quotes (\") for all keys and string values.\n"
-    "- Generate exactly 3 panels.\n"
+    "- Generate exactly {panel_count} panels.\n"
     "- Length of the 'panels' list must match the length of the 'exercises' list.\n"
     "- For each panel_id, there needs to be exactly one exercise in the 'exercises' list.\n"
     "- There can be 1-3 characters.\n\n"
     
     "### Context Parameters\n"
-    "- Target Language Code: {language_code}\n"
+    "- Target Language Code: {language}\n"
     "- Comic Style ID: {style_id}\n\n"
     
     "### Target JSON Schema Definition\n"

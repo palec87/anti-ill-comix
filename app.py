@@ -43,8 +43,16 @@ LANGUAGE_OPTIONS = {
 STYLE_OPTIONS = ["minimal", "newspaper", "watercolor", "retro"]
 MAX_SEED = 2**31 - 1
 MAX_IMAGE_SIZE = 512
-DEFAULT_IMAGE_MODEL_ID = "stabilityai/sdxl-turbo" #"black-forest-labs/FLUX.1-schnell"  #"stabilityai/sdxl-turbo"
-DEFAULT_TEXT_MODEL_ID = "Qwen/Qwen2.5-7B-Instruct"   #"openbmb/MiniCPM5-1B"
+SERVERLESS_IMAGE_MODEL_ID = "black-forest-labs/FLUX.1-schnell"
+SPACES_IMAGE_MODEL_ID = "stabilityai/sdxl-turbo"
+DEFAULT_TEXT_MODEL_ID = "Qwen/Qwen2.5-7B-Instruct"
+
+
+def _select_image_model(use_serverless_api: bool) -> tuple[str, str]:
+    """Return the image model and provider for the selected runtime."""
+    if use_serverless_api:
+        return SERVERLESS_IMAGE_MODEL_ID
+    return SPACES_IMAGE_MODEL_ID
 
 
 def _render_source(document: dict[str, Any]) -> str:
@@ -230,6 +238,8 @@ def generate_strip(
     # Toggle optional HF serverless generation path used for text and image.
     os.environ["HF_USE_SERVERLESS"] = "1" if use_serverless_api else "0"
     os.environ["HF_USE_SERVERLESS_IMAGE"] = "1" if use_serverless_api else "0"
+    image_model_id = _select_image_model(use_serverless_api)
+
 
     try:
         comics.generate_story_pipeline(
@@ -238,7 +248,7 @@ def generate_strip(
             enable_model_generation=enable_model_generation,
             text_model_repo_id=DEFAULT_TEXT_MODEL_ID,
             image_options={
-                "model_repo_id": DEFAULT_IMAGE_MODEL_ID,
+                "model_repo_id": image_model_id,
                 "use_serverless_image_api": use_serverless_api,
                 "negative_prompt": negative_prompt,
                 "seed": seed,

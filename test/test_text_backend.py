@@ -1,8 +1,13 @@
 import copy
+import json
 
 import pytest
 
-from comic_gen.text_backend import UnifiedGenerationError, _normalize_exercises
+from comic_gen.text_backend import (
+    UnifiedGenerationError,
+    _normalize_exercises,
+    generate_text_content_from_article,
+)
 
 
 PAYLOAD = {
@@ -155,3 +160,93 @@ def test_normalize_exercises_accepts_normalized_exercise_shape():
             },
         },
     ]
+
+
+def test_generate_text_prompt_honors_panel_count_and_article(monkeypatch):
+    captured = {}
+
+    def _fake_generate_with_pipeline(
+        prompt,
+        model_repo_id,
+        max_new_tokens,
+        do_sample,
+        temperature,
+    ):
+        captured["prompt"] = prompt
+        panels = []
+        exercises = []
+        for index in range(1, 5):
+            panel_id = f"panel_{index}"
+            panels.append(
+                {
+                    "panel_id": panel_id,
+                    "frame_index": index,
+                    "scene_description": f"Scene {index}",
+                    "dialogue": [
+                        {
+                            "character_id": "char_guide",
+                            "text": f"Line {index}",
+                        }
+                    ],
+                    "bubbles": [{"bbox_px": [30, 30, 300, 90]}],
+                    "render": {
+                        "image_path": f"assets/panel_{index}.png",
+                        "overlay_applied": True,
+                    },
+                }
+            )
+            exercises.append(
+                {
+                    "exercise_id": f"ex_{panel_id}",
+                    "panel_id": panel_id,
+                    "prompt": "Line ____",
+                    "blanks": ["____"],
+                    "answer_key": [str(index)],
+                    "feedback_rules": {
+                        "case_sensitive": False,
+                        "allow_trim_spaces": True,
+                    },
+                }
+            )
+        return json.dumps(
+            {
+                "simplified": {
+                    "summary": "Short summary",
+                    "level": "A2",
+                    "keywords": ["reading"],
+                },
+                "characters": [
+                    {
+                        "id": "char_guide",
+                        "name": "Guide",
+                        "description": "Plain language mentor",
+                    }
+                ],
+                "panels": panels,
+                "exercises": exercises,
+            }
+        )
+
+    monkeypatch.setattr(
+        "comic_gen.text_backend._generate_with_pipeline",
+        _fake_generate_with_pipeline,
+    )
+
+    generated = generate_text_content_from_article(
+        language="en",
+        style_id="retro",
+        article={
+            "title": "Garden news",
+            "fulltext": "Adults read a local garden article together.",
+        },
+        panel_count=4,
+        model_repo_id="test-model",
+    )
+
+    assert "- Generate exactly 4 panels." in captured["prompt"]
+    assert "Target Language Code: en" in captured["prompt"]
+    assert "Comic Style ID: retro" in captured["prompt"]
+    assert "article_title=Garden news" in captured["prompt"]
+    assert "Adults read a local garden article" in captured["prompt"]
+    assert len(generated["panels"]) == 4
+    assert len(generated["exercises"]) == 4

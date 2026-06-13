@@ -19,6 +19,66 @@ IS_LOCAL = os.environ.get("LOCAL_DEV", "False") == "True"
 _GENERATOR: Any | None = None
 _GENERATOR_MODEL_ID = ""
 _INFERENCE_CLIENT: Any | None = None
+_INFERENCE_CLIENT_PROVIDER = ""
+
+
+def _compact_text(value: Any, max_chars: int = 320) -> str:
+    text = " ".join(str(value or "").split())
+    if len(text) <= max_chars:
+        return text
+    return text[: max_chars - 3].rstrip() + "..."
+
+
+def build_image_prompt(document: dict[str, Any], panel: dict[str, Any]) -> str:
+    """Build a replayable image prompt from session and panel text."""
+    simplified = document.get("simplified", {})
+    keywords = simplified.get("keywords", [])
+    if isinstance(keywords, list):
+        keyword_text = ", ".join(str(item) for item in keywords[:6])
+    else:
+        keyword_text = ""
+
+    character_names = {
+        str(item.get("id", "")): str(item.get("name", ""))
+        for item in document.get("characters", [])
+        if isinstance(item, dict)
+    }
+    character_bits = []
+    for item in document.get("characters", []):
+        if not isinstance(item, dict):
+            continue
+        name = _compact_text(item.get("name", "Character"), 48)
+        description = _compact_text(item.get("description", ""), 140)
+        if description:
+            character_bits.append(f"{name}: {description}")
+        else:
+            character_bits.append(name)
+
+    dialogue_bits = []
+    for line in panel.get("dialogue", []):
+        if not isinstance(line, dict):
+            continue
+        character_id = str(line.get("character_id", "speaker"))
+        speaker = character_names.get(character_id, character_id)
+        text = _compact_text(line.get("text", ""), 120)
+        if text:
+            dialogue_bits.append(f"{speaker} says: {text}")
+
+    parts = [
+        f"Adult literacy educational comic panel, style: {document.get('style_id', 'minimal')}.",
+        f"Language context: {document.get('language', 'en')}.",
+        f"Article summary: {_compact_text(simplified.get('summary', ''), 260)}",
+        f"Key ideas: {_compact_text(keyword_text, 160)}",
+        f"Scene: {_compact_text(panel.get('scene_description', ''), 240)}",
+        f"Characters: {_compact_text('; '.join(character_bits), 320)}",
+        f"Dialogue context: {_compact_text('; '.join(dialogue_bits), 320)}",
+        (
+            "Create a simple low-detail comic illustration with clear character "
+            "actions and open areas for speech bubbles. Do not draw readable "
+            "letters, captions, subtitles, or speech text in the image."
+        ),
+    ]
+    return " ".join(part for part in parts if part and not part.endswith(": "))
 
 
 def _is_serverless_image_enabled(options: dict[str, Any]) -> bool:
@@ -53,7 +113,10 @@ def _get_inference_client() -> Any:
             "huggingface_hub import failed for serverless image API mode"
         ) from exc
 
-    _INFERENCE_CLIENT = InferenceClient(token=token)
+    _INFERENCE_CLIENT = InferenceClient(
+        token=token,
+        timeout=60,
+    )
     return _INFERENCE_CLIENT
 
 
@@ -74,6 +137,7 @@ def _generate_panel_image_serverless(
     height: int,
     guidance_scale: float,
     num_inference_steps: int,
+    seed: int,
 ) -> tuple[str, str]:
     client = _get_inference_client()
     try:
@@ -85,10 +149,15 @@ def _generate_panel_image_serverless(
             height=height,
             guidance_scale=guidance_scale,
             num_inference_steps=num_inference_steps,
+            seed=seed,
         )
     except Exception as exc:
         raise ImageGenerationError(
-            f"Serverless inference failed for {panel_id}: {exc}"
+            (
+                f"Serverless inference failed for {panel_id} "
+                f"(model={model_repo_id}): "
+                f"{type(exc).__name__}: {exc}"
+            )
         ) from exc
 
     out_path = _build_output_path(session_id, panel_id)
@@ -96,7 +165,7 @@ def _generate_panel_image_serverless(
         image.save(out_path)
     except Exception as exc:
         raise ImageGenerationError(
-            f"Failed to save serverless image for {panel_id}: {exc}"
+            f"Failed to save serverless image for {panel_id}: {type(exc).__name__}: {exc}"
         ) from exc
     return str(out_path), "serverless"
 
@@ -138,6 +207,7 @@ def _generate_panel_image(
             height=height,
             guidance_scale=guidance_scale,
             num_inference_steps=num_inference_steps,
+            seed=chosen_seed,
         )
         add_trace(
             document,
@@ -190,6 +260,10 @@ def generate_image_panels(
             panel_id = panel.get("panel_id", "")
             frame_index = int(panel.get("frame_index", 1))
             render = panel.setdefault("render", {})
+            image_prompt = build_image_prompt(document, panel)
+            render["image_prompt"] = image_prompt
+            render["overlay_applied"] = True
+            render["model_repo_id"] = options["model_repo_id"]
             fallback_path = str(
                 render.get("image_path", f"assets/panel_{frame_index}.png")
             )
@@ -204,7 +278,7 @@ def generate_image_panels(
             try:
                 image_path, used_seed, device = _generate_panel_image(
                     document=document,
-                    prompt=str(panel.get("scene_description", "")),
+                    prompt=image_prompt,
                     negative_prompt=options["negative_prompt"],
                     session_id=document["session_id"],
                     panel_id=panel_id,
@@ -244,6 +318,7 @@ def generate_image_panels(
                     image_source_counts.get("fallback", 0) + 1
                 )
                 render["seed"] = panel_seed
+                render["overlay_applied"] = True
                 add_trace(
                     document,
                     "step4_image_generate",
@@ -254,8 +329,11 @@ def generate_image_panels(
         for panel in panels:
             render = panel.setdefault("render", {})
             frame_index = int(panel.get("frame_index", 1))
+            render["image_prompt"] = build_image_prompt(document, panel)
             render.setdefault("image_path", f"assets/panel_{frame_index}.png")
             render["image_source"] = "deterministic"
+            render["overlay_applied"] = True
+            render["model_repo_id"] = options["model_repo_id"]
             image_source_counts["deterministic"] = (
                 image_source_counts.get("deterministic", 0) + 1
             )

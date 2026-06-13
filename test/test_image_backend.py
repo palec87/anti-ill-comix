@@ -2,28 +2,100 @@ from __future__ import annotations
 
 import pytest
 
+import comic_gen.image_backend as image_backend
 from comic_gen.errors import ModelPipelineError
 from comic_gen.image_backend import (
     ImageGenerationError,
+    _generate_panel_image_serverless,
     _generate_panel_image,
-    apply_image_generation_to_panels,
+    build_image_prompt,
+    generate_image_panels,
 )
 
 
-def test_generate_panel_image_uses_serverless_without_local_fallback(monkeypatch):
-    def _fake_serverless(**kwargs):
-        return "C:/tmp/panel_1.png", "serverless"
+def _document() -> dict:
+    return {
+        "session_id": "abc",
+        "language": "en",
+        "style_id": "watercolor",
+        "simplified": {
+            "summary": "Adults read a short article about a garden project.",
+            "level": "A2",
+            "keywords": ["garden", "reading", "confidence"],
+        },
+        "characters": [
+            {
+                "id": "char_guide",
+                "name": "Guide",
+                "description": "A calm mentor using plain language.",
+            },
+            {
+                "id": "char_learner",
+                "name": "Learner",
+                "description": "An adult practicing reading.",
+            },
+        ],
+        "trace": [],
+    }
 
-    def _should_not_call_local(_model_repo_id: str):
-        raise AssertionError("Local pipeline should not be called")
+
+def _panel() -> dict:
+    return {
+        "panel_id": "panel_1",
+        "frame_index": 1,
+        "scene_description": "Two adults read together in a garden.",
+        "dialogue": [
+            {
+                "character_id": "char_guide",
+                "text": "We read one short instruction together.",
+            },
+            {
+                "character_id": "char_learner",
+                "text": "Now I understand the main idea.",
+            },
+        ],
+        "render": {},
+    }
+
+
+def _options(enable_live_images: bool = True) -> dict:
+    return {
+        "enable_live_images": enable_live_images,
+        "use_serverless_image_api": True,
+        "model_repo_id": "stabilityai/sdxl-turbo",
+        "negative_prompt": "",
+        "seed": 11,
+        "randomize_seed": False,
+        "width": 256,
+        "height": 256,
+        "guidance_scale": 0.0,
+        "num_inference_steps": 2,
+    }
+
+
+def test_build_image_prompt_includes_session_and_panel_text():
+    prompt = build_image_prompt(_document(), _panel())
+
+    assert "watercolor" in prompt
+    assert "Language context: en" in prompt
+    assert "Adults read a short article" in prompt
+    assert "garden, reading, confidence" in prompt
+    assert "Guide: A calm mentor" in prompt
+    assert "Two adults read together" in prompt
+    assert "We read one short instruction" in prompt
+    assert "Do not draw readable letters" in prompt
+
+
+def test_generate_panel_image_uses_serverless_without_local_fallback(
+    monkeypatch,
+):
+    def _fake_serverless(**kwargs):
+        assert kwargs["seed"] == 5
+        return "C:/tmp/panel_1.png", "serverless"
 
     monkeypatch.setattr(
         "comic_gen.image_backend._generate_panel_image_serverless",
         _fake_serverless,
-    )
-    monkeypatch.setattr(
-        "comic_gen.image_backend._get_pipeline",
-        _should_not_call_local,
     )
 
     out_path, used_seed, provider = _generate_panel_image(
@@ -47,8 +119,67 @@ def test_generate_panel_image_uses_serverless_without_local_fallback(monkeypatch
     assert provider == "serverless"
 
 
-def test_apply_image_generation_marks_serverless_source(monkeypatch):
+def test_serverless_client_uses_explicit_hf_provider(monkeypatch):
+    captured = {}
+
+    class _FakeClient:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+    monkeypatch.setenv("HF_TOKEN", "hf_test")
+    monkeypatch.delenv("HF_IMAGE_PROVIDER", raising=False)
+    monkeypatch.setattr(
+        "huggingface_hub.InferenceClient",
+        _FakeClient,
+    )
+    image_backend._INFERENCE_CLIENT = None
+    image_backend._INFERENCE_CLIENT_PROVIDER = ""
+
+    client = image_backend._get_inference_client()
+
+    assert isinstance(client, _FakeClient)
+    assert captured["token"] == "hf_test"
+    assert captured["provider"] == "hf-inference"
+    assert captured["timeout"] == 60
+
+
+def test_serverless_error_includes_model_and_provider(monkeypatch):
+    class _FakeClient:
+        def text_to_image(self, **kwargs):
+            raise StopIteration()
+
+    monkeypatch.setenv("HF_IMAGE_PROVIDER", "hf-inference")
+    monkeypatch.setattr(
+        "comic_gen.image_backend._get_inference_client",
+        lambda provider_override=None: _FakeClient(),
+    )
+
+    with pytest.raises(ImageGenerationError) as exc_info:
+        _generate_panel_image_serverless(
+            prompt="Prompt",
+            negative_prompt="",
+            session_id="session-1",
+            panel_id="panel_1",
+            model_repo_id="stabilityai/sdxl-turbo",
+            width=256,
+            height=256,
+            guidance_scale=0.0,
+            num_inference_steps=2,
+            seed=5,
+        )
+
+    message = str(exc_info.value)
+    assert "model=stabilityai/sdxl-turbo" in message
+    assert "provider=hf-inference" in message
+    assert "StopIteration" in message
+
+
+def test_generate_image_panels_passes_stored_image_prompt(monkeypatch):
+    captured_prompt = ""
+
     def _fake_generate_panel_image(**kwargs):
+        nonlocal captured_prompt
+        captured_prompt = kwargs["prompt"]
         assert kwargs["use_serverless_api"] is True
         return "C:/tmp/panel_1.png", 11, "serverless"
 
@@ -57,40 +188,47 @@ def test_apply_image_generation_marks_serverless_source(monkeypatch):
         _fake_generate_panel_image,
     )
 
-    document = {"session_id": "abc", "trace": []}
-    panels = [
-        {
-            "panel_id": "panel_1",
-            "frame_index": 1,
-            "scene_description": "Scene",
-            "render": {},
-        }
-    ]
-    options = {
-        "enable_live_images": True,
-        "use_serverless_image_api": True,
-        "model_repo_id": "stabilityai/sdxl-turbo",
-        "negative_prompt": "",
-        "seed": 11,
-        "randomize_seed": False,
-        "width": 256,
-        "height": 256,
-        "guidance_scale": 0.0,
-        "num_inference_steps": 2,
-    }
+    document = _document()
+    panels = [_panel()]
 
-    counts = apply_image_generation_to_panels(
+    counts = generate_image_panels(
         document,
         panels,
-        options,
+        _options(enable_live_images=True),
         strict_mode=True,
     )
 
     assert counts == {"serverless": 1}
     assert panels[0]["render"]["image_source"] == "serverless"
+    assert panels[0]["render"]["image_prompt"] == captured_prompt
+    assert "Adults read a short article" in captured_prompt
+    assert "We read one short instruction" in captured_prompt
+    assert panels[0]["render"]["overlay_applied"] is True
 
 
-def test_apply_image_generation_raises_model_error_on_serverless_failure(monkeypatch):
+def test_generate_image_panels_records_prompt_for_deterministic_path(
+    monkeypatch,
+):
+    monkeypatch.delenv("HF_USE_SERVERLESS_IMAGE", raising=False)
+    document = _document()
+    panels = [_panel()]
+
+    counts = generate_image_panels(
+        document,
+        panels,
+        _options(enable_live_images=False),
+        strict_mode=True,
+    )
+
+    assert counts == {"deterministic": 1}
+    assert panels[0]["render"]["image_source"] == "deterministic"
+    assert "Adults read a short article" in panels[0]["render"]["image_prompt"]
+    assert panels[0]["render"]["overlay_applied"] is True
+
+
+def test_generate_image_panels_raises_model_error_on_serverless_failure(
+    monkeypatch,
+):
     def _failing_generate_panel_image(**kwargs):
         raise ImageGenerationError("serverless failed")
 
@@ -99,32 +237,10 @@ def test_apply_image_generation_raises_model_error_on_serverless_failure(monkeyp
         _failing_generate_panel_image,
     )
 
-    document = {"session_id": "abc", "trace": []}
-    panels = [
-        {
-            "panel_id": "panel_1",
-            "frame_index": 1,
-            "scene_description": "Scene",
-            "render": {},
-        }
-    ]
-    options = {
-        "enable_live_images": True,
-        "use_serverless_image_api": True,
-        "model_repo_id": "stabilityai/sdxl-turbo",
-        "negative_prompt": "",
-        "seed": 11,
-        "randomize_seed": False,
-        "width": 256,
-        "height": 256,
-        "guidance_scale": 0.0,
-        "num_inference_steps": 2,
-    }
-
     with pytest.raises(ModelPipelineError, match="image generation failed"):
-        apply_image_generation_to_panels(
-            document,
-            panels,
-            options,
+        generate_image_panels(
+            _document(),
+            [_panel()],
+            _options(enable_live_images=True),
             strict_mode=True,
         )
