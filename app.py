@@ -47,10 +47,12 @@ MAX_IMAGE_SIZE = 512
 SERVERLESS_IMAGE_MODEL_ID = "black-forest-labs/FLUX.1-schnell"
 SPACES_IMAGE_MODEL_ID = "stabilityai/sdxl-turbo"
 DEFAULT_TEXT_MODEL_ID = "Qwen/Qwen2.5-7B-Instruct"
+CSS_PATH = Path(__file__).parent / "assets" / "style.css"
+APP_CSS = CSS_PATH.read_text(encoding="utf-8") if CSS_PATH.exists() else ""
 
 
-def _select_image_model(use_serverless_api: bool) -> tuple[str, str]:
-    """Return the image model and provider for the selected runtime."""
+def _select_image_model(use_serverless_api: bool) -> str:
+    """Return the image model for the selected runtime."""
     if use_serverless_api:
         return SERVERLESS_IMAGE_MODEL_ID
     return SPACES_IMAGE_MODEL_ID
@@ -207,8 +209,33 @@ def _render_transcript(document: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _panel_choices(document: dict[str, Any]) -> list[str]:
-    return [f"panel_{p['frame_index']}" for p in document.get("panels", [])]
+def _panel_choices(document: dict[str, Any]) -> list[tuple[str, str]]:
+    return [
+        (f"Panel {p['frame_index']}", p["panel_id"])
+        for p in document.get("panels", [])
+    ]
+
+
+def _panel_id_for_selection(
+    selected_panel: str,
+    document: dict[str, Any],
+) -> str:
+    if not selected_panel:
+        return ""
+
+    panel_ids = {
+        str(panel.get("panel_id", ""))
+        for panel in document.get("panels", [])
+    }
+    if selected_panel in panel_ids:
+        return selected_panel
+
+    for panel in document.get("panels", []):
+        legacy_id = f"panel_{panel.get('frame_index')}"
+        if selected_panel == legacy_id:
+            return str(panel.get("panel_id", selected_panel))
+
+    return selected_panel
 
 
 def generate_strip(
@@ -241,7 +268,6 @@ def generate_strip(
     os.environ["HF_USE_SERVERLESS_IMAGE"] = "1" if use_serverless_api else "0"
     image_model_id = _select_image_model(use_serverless_api)
 
-
     try:
         comics.generate_story_pipeline(
             document,
@@ -272,7 +298,7 @@ def generate_strip(
         raise gr.Error(f"Schema validation failed: {exc}")
 
     choices = _panel_choices(document)
-    first_panel = choices[0] if choices else ""
+    first_panel = choices[0][1] if choices else ""
 
     return (
         document,
@@ -354,11 +380,12 @@ def load_exercise(
     if not document:
         return "Generate a strip first.", ""
 
+    panel_id = _panel_id_for_selection(selected_panel, document)
     exercise_item = next(
         (
             item
             for item in document.get("exercises", [])
-            if item["panel_id"] == selected_panel
+            if item["panel_id"] == panel_id
         ),
         None,
     )
@@ -375,7 +402,8 @@ def submit_answer(
 ) -> str:
     if not document:
         return "Generate a strip first."
-    ok, feedback = exercise.evaluate_answer(document, selected_panel, answer)
+    panel_id = _panel_id_for_selection(selected_panel, document)
+    ok, feedback = exercise.evaluate_answer(document, panel_id, answer)
     status = "ok" if ok else "retry"
     trace.add_trace(document, "exercise_submit", status, feedback)
     return feedback
@@ -385,6 +413,8 @@ with gr.Blocks() as demo:
     session_state = gr.State({})
 
     with gr.Column(elem_id="app"):
+        if APP_CSS:
+            gr.HTML(f"<style>{APP_CSS}</style>")
         gr.Markdown("# Anti-Ill Comix")
         gr.Markdown(
             (
@@ -544,9 +574,4 @@ with gr.Blocks() as demo:
 
 
 if __name__ == "__main__":
-    css_path = Path(__file__).parent / "assets" / "style.css"
-    css = ""
-    if css_path.exists():
-        css = css_path.read_text()
-
-    demo.launch(css=css)
+    demo.launch()

@@ -33,6 +33,42 @@ _GENERATOR_MODEL_ID = ""
 _INFERENCE_CLIENT: Any | None = None
 
 
+def _detect_normalization_repairs(payload: dict[str, Any]) -> list[str]:
+    """Describe shape repairs that normalization will apply."""
+    repairs: list[str] = []
+    panels = payload.get("panels", [])
+    if isinstance(panels, list):
+        for panel in panels:
+            if not isinstance(panel, dict):
+                continue
+            dialogue = panel.get("dialogue", [])
+            bubbles = panel.get("bubbles", [])
+            if (
+                isinstance(dialogue, list)
+                and dialogue
+                and isinstance(bubbles, list)
+                and len(bubbles) < len(dialogue)
+            ):
+                repairs.append("panel bubbles")
+                break
+
+    exercises = payload.get("exercises", [])
+    if isinstance(exercises, list):
+        for item in exercises:
+            if not isinstance(item, dict):
+                continue
+            prompt = str(item.get("prompt", ""))
+            blanks = item.get("blanks", [])
+            if (
+                ("____" in prompt or "_______" in prompt)
+                and isinstance(blanks, list)
+                and any(str(blank).strip("_") for blank in blanks)
+            ):
+                repairs.append("exercise blanks")
+                break
+    return repairs
+
+
 def _is_serverless_enabled() -> bool:
     value = os.environ.get("HF_USE_SERVERLESS", "0").strip().lower()
     logger.debug("HF_USE_SERVERLESS=%s", value)
@@ -179,6 +215,7 @@ def generate_text_content_from_article(
 
     payload = extract_json_object(raw_text)
     logger.info("Extracted JSON payload for unified session: %s", payload)
+    repairs = _detect_normalization_repairs(payload)
 
     try:
         simplified = _normalize_simplified(payload.get("simplified"))
@@ -211,4 +248,5 @@ def generate_text_content_from_article(
         "characters": characters,
         "panels": panels,
         "exercises": exercises,
+        "_normalization_repairs": repairs,
     }

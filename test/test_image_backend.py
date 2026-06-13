@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import pytest
 
-import comic_gen.image_backend as image_backend
 from comic_gen.errors import ModelPipelineError
 from comic_gen.image_backend import (
+    IMAGE_TEXT_NEGATIVE_PROMPT,
     ImageGenerationError,
-    _generate_panel_image_serverless,
     _generate_panel_image,
     build_image_prompt,
     generate_image_panels,
@@ -84,6 +83,8 @@ def test_build_image_prompt_includes_session_and_panel_text():
     assert "Two adults read together" in prompt
     assert "We read one short instruction" in prompt
     assert "Do not draw readable letters" in prompt
+    assert "Do not draw speech bubbles" in prompt
+    assert "readable words" in prompt
 
 
 def test_generate_panel_image_uses_serverless_without_local_fallback(
@@ -98,7 +99,7 @@ def test_generate_panel_image_uses_serverless_without_local_fallback(
         _fake_serverless,
     )
 
-    out_path, used_seed, provider = _generate_panel_image(
+    out_path, used_seed, image_source = _generate_panel_image(
         document={"trace": []},
         prompt="A panel scene",
         negative_prompt="",
@@ -116,70 +117,17 @@ def test_generate_panel_image_uses_serverless_without_local_fallback(
 
     assert out_path.endswith("panel_1.png")
     assert used_seed == 5
-    assert provider == "serverless"
-
-
-def test_serverless_client_uses_explicit_hf_provider(monkeypatch):
-    captured = {}
-
-    class _FakeClient:
-        def __init__(self, **kwargs):
-            captured.update(kwargs)
-
-    monkeypatch.setenv("HF_TOKEN", "hf_test")
-    monkeypatch.delenv("HF_IMAGE_PROVIDER", raising=False)
-    monkeypatch.setattr(
-        "huggingface_hub.InferenceClient",
-        _FakeClient,
-    )
-    image_backend._INFERENCE_CLIENT = None
-    image_backend._INFERENCE_CLIENT_PROVIDER = ""
-
-    client = image_backend._get_inference_client()
-
-    assert isinstance(client, _FakeClient)
-    assert captured["token"] == "hf_test"
-    assert captured["provider"] == "hf-inference"
-    assert captured["timeout"] == 60
-
-
-def test_serverless_error_includes_model_and_provider(monkeypatch):
-    class _FakeClient:
-        def text_to_image(self, **kwargs):
-            raise StopIteration()
-
-    monkeypatch.setenv("HF_IMAGE_PROVIDER", "hf-inference")
-    monkeypatch.setattr(
-        "comic_gen.image_backend._get_inference_client",
-        lambda provider_override=None: _FakeClient(),
-    )
-
-    with pytest.raises(ImageGenerationError) as exc_info:
-        _generate_panel_image_serverless(
-            prompt="Prompt",
-            negative_prompt="",
-            session_id="session-1",
-            panel_id="panel_1",
-            model_repo_id="stabilityai/sdxl-turbo",
-            width=256,
-            height=256,
-            guidance_scale=0.0,
-            num_inference_steps=2,
-            seed=5,
-        )
-
-    message = str(exc_info.value)
-    assert "model=stabilityai/sdxl-turbo" in message
-    assert "provider=hf-inference" in message
-    assert "StopIteration" in message
+    assert image_source == "serverless"
 
 
 def test_generate_image_panels_passes_stored_image_prompt(monkeypatch):
     captured_prompt = ""
+    captured_negative_prompt = ""
 
     def _fake_generate_panel_image(**kwargs):
-        nonlocal captured_prompt
+        nonlocal captured_prompt, captured_negative_prompt
         captured_prompt = kwargs["prompt"]
+        captured_negative_prompt = kwargs["negative_prompt"]
         assert kwargs["use_serverless_api"] is True
         return "C:/tmp/panel_1.png", 11, "serverless"
 
@@ -203,6 +151,7 @@ def test_generate_image_panels_passes_stored_image_prompt(monkeypatch):
     assert panels[0]["render"]["image_prompt"] == captured_prompt
     assert "Adults read a short article" in captured_prompt
     assert "We read one short instruction" in captured_prompt
+    assert IMAGE_TEXT_NEGATIVE_PROMPT in captured_negative_prompt
     assert panels[0]["render"]["overlay_applied"] is True
 
 

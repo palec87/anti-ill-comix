@@ -19,7 +19,12 @@ IS_LOCAL = os.environ.get("LOCAL_DEV", "False") == "True"
 _GENERATOR: Any | None = None
 _GENERATOR_MODEL_ID = ""
 _INFERENCE_CLIENT: Any | None = None
-_INFERENCE_CLIENT_PROVIDER = ""
+IMAGE_TEXT_NEGATIVE_PROMPT = (
+    "speech bubble, speech bubbles, thought bubble, comic text, captions, "
+    "caption, subtitle, subtitles, labels, label, sign, signs, UI text, "
+    "readable text, readable letters, words, letters, typography, font, "
+    "watermark, logo"
+)
 
 
 def _compact_text(value: Any, max_chars: int = 320) -> str:
@@ -74,11 +79,22 @@ def build_image_prompt(document: dict[str, Any], panel: dict[str, Any]) -> str:
         f"Dialogue context: {_compact_text('; '.join(dialogue_bits), 320)}",
         (
             "Create a simple low-detail comic illustration with clear character "
-            "actions and open areas for speech bubbles. Do not draw readable "
-            "letters, captions, subtitles, or speech text in the image."
+            "actions and uncluttered blank areas where the app can overlay "
+            "separate HTML speech bubbles later. Do not draw speech bubbles, "
+            "thought bubbles, captions, signs, labels, UI text, subtitles, or "
+            "any text inside the image. Do not draw readable letters, "
+            "readable words, typography, or fonts."
         ),
     ]
     return " ".join(part for part in parts if part and not part.endswith(": "))
+
+
+def _merge_negative_prompt(user_prompt: str) -> str:
+    """Merge user exclusions with required no-text image constraints."""
+    user_prompt = str(user_prompt or "").strip()
+    if not user_prompt:
+        return IMAGE_TEXT_NEGATIVE_PROMPT
+    return f"{user_prompt}, {IMAGE_TEXT_NEGATIVE_PROMPT}"
 
 
 def _is_serverless_image_enabled(options: dict[str, Any]) -> bool:
@@ -197,7 +213,7 @@ def _generate_panel_image(
     chosen_seed = random.randint(0, MAX_SEED) if randomize_seed else seed
     logger.info(f'\n\nIMAGE gen prompt:\n {prompt}\n\n')
     if use_serverless_api:
-        out_path, provider = _generate_panel_image_serverless(
+        out_path, source = _generate_panel_image_serverless(
             prompt=prompt,
             negative_prompt=negative_prompt,
             session_id=session_id,
@@ -215,7 +231,7 @@ def _generate_panel_image(
             "ok",
             f"{panel_id} image saved to {out_path}",
         )
-        return out_path, chosen_seed, provider
+        return out_path, chosen_seed, source
 
     import torch
     from diffusers import DiffusionPipeline
@@ -279,7 +295,9 @@ def generate_image_panels(
                 image_path, used_seed, device = _generate_panel_image(
                     document=document,
                     prompt=image_prompt,
-                    negative_prompt=options["negative_prompt"],
+                    negative_prompt=_merge_negative_prompt(
+                        options["negative_prompt"]
+                    ),
                     session_id=document["session_id"],
                     panel_id=panel_id,
                     model_repo_id=options["model_repo_id"],

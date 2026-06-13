@@ -98,6 +98,14 @@ def generate_story_pipeline(
             panel_count=panel_count,
             model_repo_id=text_model_repo_id,
         )
+        repairs = generated.get("_normalization_repairs", [])
+        if isinstance(repairs, list) and repairs:
+            add_trace(
+                document,
+                "model_normalization",
+                "repaired",
+                f"Repaired {', '.join(str(item) for item in repairs)}",
+            )
         logger.info(f"Simplified output in generate_story_pipeline: {generated.get('simplified', {})}")
         (
             simplified,

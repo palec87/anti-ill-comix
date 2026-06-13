@@ -250,3 +250,148 @@ def test_generate_text_prompt_honors_panel_count_and_article(monkeypatch):
     assert "Adults read a local garden article" in captured["prompt"]
     assert len(generated["panels"]) == 4
     assert len(generated["exercises"]) == 4
+
+
+def test_model_payload_with_empty_bubbles_and_answer_blanks_is_repaired(
+    monkeypatch,
+):
+    payload = {
+        "simplified": {
+            "summary": (
+                "Artists are creating imperfect art to oppose AI's perfect "
+                "images."
+            ),
+            "level": "Intermediate",
+            "keywords": ["Artists", "AI", "Imperfect"],
+        },
+        "characters": [
+            {
+                "id": "A1",
+                "name": "Rob Wrubel",
+                "description": "Co-founder and managing partner at Silverside.",
+            }
+        ],
+        "panels": [
+            {
+                "panel_id": "P1",
+                "frame_index": 1,
+                "scene_description": "Rob Wrubel speaking at an event.",
+                "dialogue": [
+                    {
+                        "character_id": "A1",
+                        "text": (
+                            "What's incredible about AI is that you can go "
+                            "from script to production in just two weeks!"
+                        ),
+                    }
+                ],
+                "bubbles": [],
+                "render": {
+                    "image_path": "event_speech.jpg",
+                    "overlay_applied": True,
+                },
+            },
+            {
+                "panel_id": "P2",
+                "frame_index": 2,
+                "scene_description": (
+                    "An AI-generated ad with computerized polar bears and "
+                    "fake-looking trucks."
+                ),
+                "dialogue": [
+                    {"character_id": "A1", "text": "The ad was widely despised."}
+                ],
+                "bubbles": [],
+                "render": {"image_path": "ai_ad.jpg", "overlay_applied": True},
+            },
+            {
+                "panel_id": "P3",
+                "frame_index": 3,
+                "scene_description": (
+                    "Rob Wrubel admitting the backlash importance."
+                ),
+                "dialogue": [
+                    {
+                        "character_id": "A1",
+                        "text": (
+                            "The conversation around the ad became almost as "
+                            "important as the ad itself."
+                        ),
+                    }
+                ],
+                "bubbles": [],
+                "render": {
+                    "image_path": "ad_backlash.jpg",
+                    "overlay_applied": True,
+                },
+            },
+        ],
+        "exercises": [
+            {
+                "exercise_id": "E1",
+                "panel_id": "P1",
+                "prompt": (
+                    "Rob Wrubel says that AI can make ads in just _______ "
+                    "weeks."
+                ),
+                "blanks": ["two"],
+                "answer_key": ["two"],
+                "feedback_rules": {
+                    "case_sensitive": False,
+                    "allow_trim_spaces": True,
+                },
+            },
+            {
+                "exercise_id": "E2",
+                "panel_id": "P2",
+                "prompt": "The AI-generated ad was _______ by people.",
+                "blanks": ["despised"],
+                "answer_key": ["despised"],
+                "feedback_rules": {
+                    "case_sensitive": False,
+                    "allow_trim_spaces": True,
+                },
+            },
+            {
+                "exercise_id": "E3",
+                "panel_id": "P3",
+                "prompt": (
+                    "Rob Wrubel admitted that the _______ around the ad was "
+                    "important."
+                ),
+                "blanks": ["conversation"],
+                "answer_key": ["conversation"],
+                "feedback_rules": {
+                    "case_sensitive": False,
+                    "allow_trim_spaces": True,
+                },
+            },
+        ],
+    }
+
+    monkeypatch.setattr(
+        "comic_gen.text_backend._generate_with_pipeline",
+        lambda *args, **kwargs: json.dumps(payload),
+    )
+
+    generated = generate_text_content_from_article(
+        language="en",
+        style_id="minimal",
+        article={"title": "AI art", "fulltext": "Article text"},
+        panel_count=3,
+        model_repo_id="test-model",
+    )
+
+    assert [panel["panel_id"] for panel in generated["panels"]] == [
+        "P1",
+        "P2",
+        "P3",
+    ]
+    assert all(panel["bubbles"] for panel in generated["panels"])
+    assert generated["exercises"][0]["panel_id"] == "P1"
+    assert generated["exercises"][0]["blanks"] == ["____"]
+    assert generated["exercises"][0]["answer_key"] == ["two"]
+    assert set(generated["_normalization_repairs"]) == {
+        "panel bubbles",
+        "exercise blanks",
+    }

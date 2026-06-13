@@ -292,6 +292,8 @@ def _normalize_exercises(
             blanks = ["____"]
         if not isinstance(answer_key, list) or not answer_key:
             raise UnifiedGenerationError("exercise answer_key missing")
+        if "____" in prompt or "_______" in prompt:
+            blanks = ["____" for _ in answer_key]
         feedback_rules = item.get("feedback_rules", {})
         if not isinstance(feedback_rules, dict):
             feedback_rules = {}
