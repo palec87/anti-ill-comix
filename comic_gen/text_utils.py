@@ -78,6 +78,205 @@ class ComicResponse(BaseModel):
     exercises: List[Exercise]
 
 
+UI_TRANSLATIONS = {
+    "en": {
+        "app_subtitle": "Turn international news into simple comic practice for adult reading and writing.",
+        "language": "Language",
+        "art_style": "Art style",
+        "reading_level": "Reading level",
+        "panel_count": "Panel count",
+        "live_feed": "Use live RSS article",
+        "advanced_options": "Advanced Options",
+        "serverless": "Use HF serverless API for text + image generation",
+        "debug": "Debug panel rendering",
+        "negative_prompt": "Negative prompt",
+        "negative_prompt_placeholder": "Optional quality or style exclusions",
+        "seed": "Seed",
+        "randomize_seed": "Randomize seed",
+        "width": "Width",
+        "height": "Height",
+        "guidance_scale": "Guidance scale",
+        "inference_steps": "Inference steps",
+        "generate": "Generate Comic Strip",
+        "source": "Source",
+        "publisher": "Publisher",
+        "title": "Title",
+        "link": "Link",
+        "published": "Published",
+        "summary": "Simplified Summary",
+        "keywords": "Keywords",
+        "transcript": "Transcript",
+        "panel": "Panel",
+        "exercises_heading": "### Writing Exercises",
+        "select_panel": "Select panel",
+        "exercise": "Exercise",
+        "generate_first": "Generate a strip first.",
+        "unlock_exercises": "Generate a strip to unlock exercises.",
+        "no_exercise": "No exercise available for this panel.",
+        "answer_label": "Your answer",
+        "answer_placeholder": "Type the missing word",
+        "submit": "Submit Answer",
+        "trace": "Trace / Debug",
+    },
+    "pt": {
+        "app_subtitle": "Transforme noticias internacionais em pratica simples de leitura e escrita com quadrinhos.",
+        "language": "Idioma",
+        "art_style": "Estilo de arte",
+        "reading_level": "Nivel de leitura",
+        "panel_count": "Numero de quadros",
+        "live_feed": "Usar noticia RSS ao vivo",
+        "advanced_options": "Opcoes avancadas",
+        "serverless": "Usar API serverless HF para texto + imagem",
+        "debug": "Depurar quadros",
+        "negative_prompt": "Prompt negativo",
+        "negative_prompt_placeholder": "Exclusoes opcionais de qualidade ou estilo",
+        "seed": "Semente",
+        "randomize_seed": "Semente aleatoria",
+        "width": "Largura",
+        "height": "Altura",
+        "guidance_scale": "Escala de orientacao",
+        "inference_steps": "Passos de inferencia",
+        "generate": "Gerar quadrinhos",
+        "source": "Fonte",
+        "publisher": "Publicador",
+        "title": "Titulo",
+        "link": "Link",
+        "published": "Publicado",
+        "summary": "Resumo simplificado",
+        "keywords": "Palavras-chave",
+        "transcript": "Transcricao",
+        "panel": "Quadro",
+        "exercises_heading": "### Exercicios de escrita",
+        "select_panel": "Selecionar quadro",
+        "exercise": "Exercicio",
+        "generate_first": "Gere uma tira primeiro.",
+        "unlock_exercises": "Gere uma tira para liberar os exercicios.",
+        "no_exercise": "Nao ha exercicio para este quadro.",
+        "answer_label": "Sua resposta",
+        "answer_placeholder": "Digite a palavra que falta",
+        "submit": "Enviar resposta",
+        "trace": "Rastro / Debug",
+    },
+    "es": {
+        "app_subtitle": "Convierte noticias internacionales en practica simple de lectura y escritura con comics.",
+        "language": "Idioma",
+        "art_style": "Estilo artistico",
+        "reading_level": "Nivel de lectura",
+        "panel_count": "Numero de vinetas",
+        "live_feed": "Usar noticia RSS en vivo",
+        "advanced_options": "Opciones avanzadas",
+        "serverless": "Usar API serverless HF para texto + imagen",
+        "debug": "Depurar vinetas",
+        "negative_prompt": "Prompt negativo",
+        "negative_prompt_placeholder": "Exclusiones opcionales de calidad o estilo",
+        "seed": "Semilla",
+        "randomize_seed": "Semilla aleatoria",
+        "width": "Ancho",
+        "height": "Alto",
+        "guidance_scale": "Escala de guia",
+        "inference_steps": "Pasos de inferencia",
+        "generate": "Generar comic",
+        "source": "Fuente",
+        "publisher": "Editor",
+        "title": "Titulo",
+        "link": "Enlace",
+        "published": "Publicado",
+        "summary": "Resumen simplificado",
+        "keywords": "Palabras clave",
+        "transcript": "Transcripcion",
+        "panel": "Vineta",
+        "exercises_heading": "### Ejercicios de escritura",
+        "select_panel": "Seleccionar vineta",
+        "exercise": "Ejercicio",
+        "generate_first": "Primero genera una tira.",
+        "unlock_exercises": "Genera una tira para desbloquear ejercicios.",
+        "no_exercise": "No hay ejercicio para esta vineta.",
+        "answer_label": "Tu respuesta",
+        "answer_placeholder": "Escribe la palabra que falta",
+        "submit": "Enviar respuesta",
+        "trace": "Traza / Debug",
+    },
+    "fr": {
+        "app_subtitle": "Transformez des nouvelles internationales en pratique simple de lecture et d'ecriture avec BD.",
+        "language": "Langue",
+        "art_style": "Style artistique",
+        "reading_level": "Niveau de lecture",
+        "panel_count": "Nombre de cases",
+        "live_feed": "Utiliser une nouvelle RSS en direct",
+        "advanced_options": "Options avancees",
+        "serverless": "Utiliser l'API HF serverless pour texte + image",
+        "debug": "Debug des cases",
+        "negative_prompt": "Prompt negatif",
+        "negative_prompt_placeholder": "Exclusions optionnelles de qualite ou de style",
+        "seed": "Graine",
+        "randomize_seed": "Graine aleatoire",
+        "width": "Largeur",
+        "height": "Hauteur",
+        "guidance_scale": "Echelle de guidage",
+        "inference_steps": "Etapes d'inference",
+        "generate": "Generer la BD",
+        "source": "Source",
+        "publisher": "Editeur",
+        "title": "Titre",
+        "link": "Lien",
+        "published": "Publie",
+        "summary": "Resume simplifie",
+        "keywords": "Mots cles",
+        "transcript": "Transcription",
+        "panel": "Case",
+        "exercises_heading": "### Exercices d'ecriture",
+        "select_panel": "Choisir une case",
+        "exercise": "Exercice",
+        "generate_first": "Generez d'abord une BD.",
+        "unlock_exercises": "Generez une BD pour ouvrir les exercices.",
+        "no_exercise": "Aucun exercice pour cette case.",
+        "answer_label": "Votre reponse",
+        "answer_placeholder": "Tapez le mot manquant",
+        "submit": "Envoyer la reponse",
+        "trace": "Trace / Debug",
+    },
+    "de": {
+        "app_subtitle": "Verwandle internationale Nachrichten in einfache Lese- und Schreibuebung mit Comics.",
+        "language": "Sprache",
+        "art_style": "Kunststil",
+        "reading_level": "Leseniveau",
+        "panel_count": "Anzahl der Bilder",
+        "live_feed": "Live-RSS-Nachricht verwenden",
+        "advanced_options": "Erweiterte Optionen",
+        "serverless": "HF Serverless API fuer Text + Bild verwenden",
+        "debug": "Bilder debuggen",
+        "negative_prompt": "Negativer Prompt",
+        "negative_prompt_placeholder": "Optionale Qualitaets- oder Stil-Ausschluesse",
+        "seed": "Seed",
+        "randomize_seed": "Zufaelliger Seed",
+        "width": "Breite",
+        "height": "Hoehe",
+        "guidance_scale": "Fuehrungsstaerke",
+        "inference_steps": "Inferenzschritte",
+        "generate": "Comic erzeugen",
+        "source": "Quelle",
+        "publisher": "Herausgeber",
+        "title": "Titel",
+        "link": "Link",
+        "published": "Veroeffentlicht",
+        "summary": "Vereinfachte Zusammenfassung",
+        "keywords": "Schluesselwoerter",
+        "transcript": "Transkript",
+        "panel": "Bild",
+        "exercises_heading": "### Schreibuebungen",
+        "select_panel": "Bild auswaehlen",
+        "exercise": "Uebung",
+        "generate_first": "Erzeuge zuerst einen Comic.",
+        "unlock_exercises": "Erzeuge einen Comic, um Uebungen zu oeffnen.",
+        "no_exercise": "Keine Uebung fuer dieses Bild.",
+        "answer_label": "Deine Antwort",
+        "answer_placeholder": "Gib das fehlende Wort ein",
+        "submit": "Antwort senden",
+        "trace": "Trace / Debug",
+    },
+}
+
+
 def load_json_article(language: str) -> dict[str, str]:
     repo_root = Path(__file__).resolve().parents[1]
     example_path = repo_root / "examples" / f"{language}_demo.json"
@@ -346,8 +545,8 @@ def _box_overlap_ratio(first: list[int], second: list[int]) -> float:
 
 def _normalize_bbox(
     raw: Any,
-    min_width: int = 90,
-    min_height: int = 30,
+    min_width: int = 82,
+    min_height: int = 24,
 ) -> tuple[list[int], bool]:
     """Normalize one bubble box and report whether it needed repair."""
     if not isinstance(raw, list) or len(raw) != 4:
@@ -460,89 +659,3 @@ def extract_json_object(raw_text: str) -> dict[str, Any]:
         return json_dict
         
     raise UnifiedGenerationError("model output is not valid JSON")
-
-
-# def extract_json_object(raw_text: str) -> dict[str, Any]:
-#     start = raw_text.find("{")
-#     end = raw_text.rfind("}")
-#     if start == -1 or end == -1 or end <= start:
-#         raise UnifiedGenerationError("model output missing JSON object")
-#     try:
-#         parsed = json.loads(raw_text[start:end + 1])
-#     except json.JSONDecodeError as exc:
-#         logger.info("INPUT to parse JSON: %s", raw_text[start:end + 1])
-#         raise UnifiedGenerationError("model output is not valid JSON") from exc
-#     if not isinstance(parsed, dict):
-#         raise UnifiedGenerationError("model output root must be object")
-#     return parsed 
-
-# def extract_json_object(raw_text: str) -> dict[str, Any]:
-#     def _balanced_json_objects(text: str) -> list[str]:
-#         objects: list[str] = []
-#         start_idx = -1
-#         depth = 0
-#         in_string = False
-#         escaped = False
-
-#         for idx, char in enumerate(text):
-#             if in_string:
-#                 if escaped:
-#                     escaped = False
-#                     continue
-#                 if char == "\\":
-#                     escaped = True
-#                 elif char == '"':
-#                     in_string = False
-#                 continue
-
-#             if char == '"':
-#                 in_string = True
-#             elif char == "{":
-#                 if depth == 0:
-#                     start_idx = idx
-#                 depth += 1
-#             elif char == "}" and depth > 0:
-#                 depth -= 1
-#                 if depth == 0 and start_idx != -1:
-#                     objects.append(text[start_idx: idx + 1])
-#                     start_idx = -1
-
-#         return objects
-
-#     candidates: list[str] = []
-#     fenced_matches = re.findall(r"```(?:json)?\\s*([\\s\\S]*?)```", raw_text)
-#     candidates.extend(
-#         match.strip()
-#         for match in fenced_matches
-#         if match.strip()
-#     )
-#     candidates.append(raw_text)
-
-#     decoder = json.JSONDecoder()
-#     parse_errors: list[str] = []
-
-#     for candidate in candidates:
-#         for blob in _balanced_json_objects(candidate):
-#             try:
-#                 parsed, end_idx = decoder.raw_decode(blob)
-#                 if blob[end_idx:].strip():
-#                     parse_errors.append("trailing_non_json_content")
-#                     continue
-#                 if not isinstance(parsed, dict):
-#                     parse_errors.append("root_not_object")
-#                     continue
-#                 return parsed
-#             except json.JSONDecodeError as exc:
-#                 context_start = max(0, exc.pos - 40)
-#                 context_end = min(len(blob), exc.pos + 40)
-#                 context = blob[context_start:context_end]
-#                 parse_errors.append(
-#                     f"{exc.msg} at line {exc.lineno}, col {exc.colno}, "
-#                     f"pos {exc.pos}; context={context!r}"
-#                 )
-
-#     if "{" not in raw_text or "}" not in raw_text:
-#         raise UnifiedGenerationError("model output missing JSON object")
-
-#     logger.info("Failed JSON parse details: %s", " | ".join(parse_errors))
-#     raise UnifiedGenerationError("model output is not valid JSON")

@@ -246,7 +246,8 @@ def test_generate_text_prompt_honors_panel_count_and_article(monkeypatch):
     )
 
     assert "- Generate exactly 4 panels." in captured["prompt"]
-    assert "Target Language Code: en" in captured["prompt"]
+    assert "Canonical Generation Language Code: en" in captured["prompt"]
+    assert "Generate canonical learner content in English" in captured["prompt"]
     assert "Comic Style ID: retro" in captured["prompt"]
     assert "Reading Level: B1" in captured["prompt"]
     assert "Set simplified.level exactly to B1." in captured["prompt"]

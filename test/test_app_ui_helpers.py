@@ -2,15 +2,20 @@ from __future__ import annotations
 
 from app import (
     READING_LEVEL_OPTIONS,
+    _language_code_for_label,
     _overlay_bubbles_html,
     _panel_choices,
     _panel_image_html,
+    _render_transcript,
+    _ui_text,
     load_exercise,
 )
+from comic_gen.exercise import evaluate_answer
 
 
 def _document() -> dict:
     return {
+        "language": "en",
         "panels": [
             {
                 "panel_id": "P1",
@@ -50,8 +55,24 @@ def test_panel_choices_use_canonical_panel_ids():
     ]
 
 
+def test_panel_choices_use_localized_panel_label():
+    document = _document()
+    document["language"] = "es"
+
+    assert _panel_choices(document) == [
+        ("Vineta 1", "P1"),
+        ("Vineta 2", "P2"),
+    ]
+
+
 def test_reading_level_options_are_a1_to_b2():
     assert READING_LEVEL_OPTIONS == ["A1", "A2", "B1", "B2"]
+
+
+def test_ui_text_falls_back_to_english():
+    assert _language_code_for_label("Deutsch") == "de"
+    assert _ui_text("es", "generate") == "Generar comic"
+    assert _ui_text("xx", "generate") == "Generate Comic Strip"
 
 
 def test_load_exercise_uses_canonical_panel_id():
@@ -66,6 +87,40 @@ def test_load_exercise_supports_legacy_frame_panel_id():
 
     assert "Rob Wrubel says" in prompt
     assert answer == ""
+
+
+def test_load_exercise_uses_localized_heading_and_empty_state():
+    document = _document()
+    document["language"] = "es"
+
+    prompt, _ = load_exercise("P1", document)
+    missing, _ = load_exercise("P2", document)
+
+    assert prompt.startswith("### Ejercicio")
+    assert missing == "No hay ejercicio para esta vineta."
+
+
+def test_render_transcript_uses_localized_heading():
+    document = _document()
+    document["language"] = "de"
+
+    transcript = _render_transcript(document)
+
+    assert transcript.startswith("### Transkript")
+    assert "BILD 1" in transcript
+
+
+def test_exercise_feedback_uses_document_language():
+    document = _document()
+    document["language"] = "es"
+
+    ok, correct = evaluate_answer(document, "P1", "two")
+    retry_ok, retry = evaluate_answer(document, "P1", "wrong")
+
+    assert ok is True
+    assert correct == "Correcto. Buena practica de escritura."
+    assert retry_ok is False
+    assert "Todavia no." in retry
 
 
 def test_overlay_bubbles_html_uses_inline_styles_and_escapes_text():

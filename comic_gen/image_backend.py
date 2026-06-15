@@ -43,11 +43,11 @@ def build_image_prompt(document: dict[str, Any], panel: dict[str, Any]) -> str:
     scene = _compact_text(panel.get("scene_description", ""), 70)
     style_id = _compact_text(document.get("style_id", "minimal"), 32)
     parts = [
-        # "Plain comic scene only.",
+        "Plain comic scene only.",
         "Characters and background only.",
         f"Scene: {scene}.",
         f"Keep strict {style_id} style.",
-        # "Empty margins for later overlay.",
+        "Empty margins for later overlay.",
     ]
     return " ".join(part for part in parts if part and not part.endswith(": "))
 
@@ -281,11 +281,13 @@ def _generate_panel_image(
     num_inference_steps: int,
     use_serverless_api: bool,
 ) -> tuple[str, int, str]:
+    if isinstance(model_repo_id, (list, tuple)):
+        model_repo_id = str(model_repo_id[0] if model_repo_id else "")
     chosen_seed = random.randint(0, MAX_SEED) if randomize_seed else seed
     logger.info(f'\n\nIMAGE gen prompt:\n {prompt}\n\n')
 
     last_error: BaseException | None = None
-    for attempt in range(1, 3):
+    for attempt in range(1, 4):
         started = perf_counter()
         try:
             if use_serverless_api:

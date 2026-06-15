@@ -19,13 +19,15 @@ UNIFIED_SESSION_PROMPT = (
     "- Do NOT output any conversational text before or after the JSON structure.\n"
     "- Use strict double quotes (\") for all keys and string values.\n"
     "- Generate exactly {panel_count} panels.\n"
+    "- Each must have at least one dialogue line and one bubble.\n"
+    "- Generate canonical learner content in English for stable parsing.\n"
     "- Set simplified.level exactly to {reading_level}.\n"
     "- Length of the 'panels' list must match the length of the 'exercises' list.\n"
     "- For each panel_id, there needs to be exactly one exercise in the 'exercises' list.\n"
     "- There can be 1-3 characters.\n\n"
     
     "### Context Parameters\n"
-    "- Target Language Code: {language}\n"
+    "- Canonical Generation Language Code: {language}\n"
     "- Comic Style ID: {style_id}\n\n"
     "- Reading Level: {reading_level}\n\n"
 

@@ -11,6 +11,7 @@ from .text_backend import (
 )
 from .text_utils import _normalize_model_fields
 from .backends import deterministic_pipeline
+from .translation_backend import translate_session_content
 from .trace import add_trace
 from .errors import ModelPipelineError
 
@@ -94,11 +95,12 @@ def generate_story_pipeline(
 ) -> None:
     options = _normalized_image_options(image_options)
     options["enable_live_images"] = True
+    target_language = str(document.get("language", "en"))
     logger.info("Running unified model pipeline (text + image)")
 
     try:
         generated = generate_text_content_from_article(
-            language=str(document.get("language", "en")),
+            language="en",
             style_id=str(document.get("style_id", "minimal")),
             reading_level=reading_level,
             article=document.get("article", {}),
@@ -124,6 +126,19 @@ def generate_story_pipeline(
         document["characters"] = characters
         document["panels"] = panels
         document["exercises"] = exercises_data
+        try:
+            translate_session_content(
+                document,
+                target_language,
+                source_language="en",
+            )
+        except Exception as exc:
+            add_trace(
+                document,
+                "translation",
+                "fallback",
+                f"Translation failed, keeping canonical content: {exc}",
+            )
         add_trace(
             document,
             "model_pipeline",
@@ -163,3 +178,16 @@ def generate_story_pipeline(
             document,
         )
         document.setdefault("simplified", {})["level"] = reading_level
+        try:
+            translate_session_content(
+                document,
+                target_language,
+                source_language=str(document.get("language", target_language)),
+            )
+        except Exception as translate_exc:
+            add_trace(
+                document,
+                "translation",
+                "fallback",
+                f"Translation failed after deterministic fallback: {translate_exc}",
+            )

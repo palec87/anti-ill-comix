@@ -7,6 +7,7 @@ from . import (
     session,
     text_backend,
     trace,
+    translation_backend,
 )
 from .models import ValidationError, validate_session_document
 
@@ -19,6 +20,7 @@ __all__ = [
     "session",
     "text_backend",
     "trace",
+    "translation_backend",
     "ValidationError",
     "validate_session_document",
 ]

@@ -32,15 +32,17 @@ try:
 except ImportError:
     logger.warning("python-dotenv not installed, skipping .env loading")
 
+from comic_gen.text_utils import UI_TRANSLATIONS
 
 LANGUAGE_OPTIONS = {
     "English": "en",
+    "Portuguese": "pt",
     "Espanol": "es",
     "Francais": "fr",
     "Deutsch": "de",
 }
 
-_VERSION = 0.13
+_VERSION = 0.14
 STYLE_OPTIONS = ["minimal", "newspaper", "watercolor", "retro"]
 READING_LEVEL_OPTIONS = ["A1", "A2", "B1", "B2"]
 MAX_SEED = 2**31 - 1
@@ -59,25 +61,75 @@ def _select_image_model(use_serverless_api: bool) -> str:
     return SPACES_IMAGE_MODEL_ID
 
 
+def _language_code_for_label(language_label: str) -> str:
+    """Return the app language code for a dropdown label."""
+    return LANGUAGE_OPTIONS.get(language_label, "en")
+
+
+def _ui_text(language_code: str, key: str) -> str:
+    """Return localized UI text with English fallback."""
+    language = language_code if language_code in UI_TRANSLATIONS else "en"
+    return UI_TRANSLATIONS.get(language, {}).get(
+        key,
+        UI_TRANSLATIONS["en"].get(key, key),
+    )
+
+
+def _localized_ui_updates(language_label: str) -> tuple[Any, ...]:
+    """Build Gradio updates for static UI text."""
+    language = _language_code_for_label(language_label)
+    return (
+        gr.update(value=f"{_ui_text(language, 'app_subtitle')} {_VERSION}"),
+        gr.update(label=_ui_text(language, "language")),
+        gr.update(label=_ui_text(language, "art_style")),
+        gr.update(label=_ui_text(language, "reading_level")),
+        gr.update(label=_ui_text(language, "panel_count")),
+        gr.update(label=_ui_text(language, "live_feed")),
+        gr.update(label=_ui_text(language, "serverless")),
+        gr.update(label=_ui_text(language, "debug")),
+        gr.update(
+            label=_ui_text(language, "negative_prompt"),
+            placeholder=_ui_text(language, "negative_prompt_placeholder"),
+        ),
+        gr.update(label=_ui_text(language, "seed")),
+        gr.update(label=_ui_text(language, "randomize_seed")),
+        gr.update(label=_ui_text(language, "width")),
+        gr.update(label=_ui_text(language, "height")),
+        gr.update(label=_ui_text(language, "guidance_scale")),
+        gr.update(label=_ui_text(language, "inference_steps")),
+        gr.update(value=_ui_text(language, "generate")),
+        gr.update(value=_ui_text(language, "exercises_heading")),
+        gr.update(label=_ui_text(language, "select_panel")),
+        gr.update(value=_ui_text(language, "unlock_exercises")),
+        gr.update(
+            label=_ui_text(language, "answer_label"),
+            placeholder=_ui_text(language, "answer_placeholder"),
+        ),
+        gr.update(value=_ui_text(language, "submit")),
+    )
+
+
 def _render_source(document: dict[str, Any]) -> str:
+    language = str(document.get("language", "en"))
     source = document["source"]
     article = document["article"]
     return (
-        f"### Source\n"
-        f"- Publisher: {source['publisher']}\n"
-        f"- Title: {article['title']}\n"
-        f"- Link: {source['link']}\n"
-        f"- Published: {source['published_at']}"
+        f"### {_ui_text(language, 'source')}\n"
+        f"- {_ui_text(language, 'publisher')}: {source['publisher']}\n"
+        f"- {_ui_text(language, 'title')}: {article['title']}\n"
+        f"- {_ui_text(language, 'link')}: {source['link']}\n"
+        f"- {_ui_text(language, 'published')}: {source['published_at']}"
     )
 
 
 def _render_summary(document: dict[str, Any]) -> str:
+    language = str(document.get("language", "en"))
     simplified = document["simplified"]
     keywords = ", ".join(simplified.get("keywords", []))
     return (
-        f"### Simplified Summary ({simplified['level']})\n"
+        f"### {_ui_text(language, 'summary')} ({simplified['level']})\n"
         f"{simplified['summary']}\n\n"
-        f"Keywords: {keywords}"
+        f"{_ui_text(language, 'keywords')}: {keywords}"
     )
 
 
@@ -164,8 +216,8 @@ def _overlay_bubbles_html(
             "width:max-content;height:auto;"
             "box-sizing:border-box;z-index:5;pointer-events:none;"
             "display:flex;align-items:center;justify-content:center;"
-            "padding:3px 6px;border:1px solid rgba(17,24,39,0.92);"
-            "border-radius:10px;background:rgba(255,255,255,0.94);"
+            "padding:2px 5px;border:1px solid rgba(17,24,39,0.92);"
+            "border-radius:8px;background:rgba(255,255,255,0.94);"
             "box-shadow:0 2px 8px rgba(17,24,39,0.18);"
             "overflow:hidden;"
         )
@@ -227,7 +279,8 @@ def _render_panels_html(
 
 
 def _render_transcript(document: dict[str, Any]) -> str:
-    lines: list[str] = ["### Transcript"]
+    language = str(document.get("language", "en"))
+    lines: list[str] = [f"### {_ui_text(language, 'transcript')}"]
 
     # Use enumerate to track if we are on the first panel or a later one
     for i, panel in enumerate(document.get("panels", [])):
@@ -235,7 +288,9 @@ def _render_transcript(document: dict[str, Any]) -> str:
         if i > 0:
             lines.append("")
 
-        lines.append(f"PANEL {panel['frame_index']}")
+        lines.append(
+            f"{_ui_text(language, 'panel').upper()} {panel['frame_index']}"
+        )
         for line in panel.get("dialogue", []):
             lines.append(f"- {line['character_id']}: {line['text']}")
 
@@ -243,8 +298,9 @@ def _render_transcript(document: dict[str, Any]) -> str:
 
 
 def _panel_choices(document: dict[str, Any]) -> list[tuple[str, str]]:
+    language = str(document.get("language", "en"))
     return [
-        (f"Panel {p['frame_index']}", p["panel_id"])
+        (f"{_ui_text(language, 'panel')} {p['frame_index']}", p["panel_id"])
         for p in document.get("panels", [])
     ]
 
@@ -417,8 +473,9 @@ def load_exercise(
     document: dict[str, Any],
 ) -> tuple[str, str]:
     if not document:
-        return "Generate a strip first.", ""
+        return _ui_text("en", "generate_first"), ""
 
+    language = str(document.get("language", "en"))
     panel_id = _panel_id_for_selection(selected_panel, document)
     exercise_item = next(
         (
@@ -429,9 +486,9 @@ def load_exercise(
         None,
     )
     if not exercise_item:
-        return "No exercise available for this panel.", ""
+        return _ui_text(language, "no_exercise"), ""
 
-    return f"### Exercise\n{exercise_item['prompt']}", ""
+    return f"### {_ui_text(language, 'exercise')}\n{exercise_item['prompt']}", ""
 
 
 def submit_answer(
@@ -440,7 +497,7 @@ def submit_answer(
     document: dict[str, Any],
 ) -> str:
     if not document:
-        return "Generate a strip first."
+        return _ui_text("en", "generate_first")
     panel_id = _panel_id_for_selection(selected_panel, document)
     ok, feedback = exercise.evaluate_answer(document, panel_id, answer)
     status = "ok" if ok else "retry"
@@ -455,7 +512,7 @@ with gr.Blocks() as demo:
         if APP_CSS:
             gr.HTML(f"<style>{APP_CSS}</style>")
         gr.Markdown("# Anti-Ill Comix")
-        gr.Markdown(
+        subtitle_md = gr.Markdown(
             (
                 "Turn international news into simple comic practice "
                 f"for adult reading and writing. {_VERSION}"
@@ -553,7 +610,7 @@ with gr.Blocks() as demo:
         panel_html = gr.HTML()
         transcript_md = gr.Markdown(elem_id="transcript_md")
 
-        gr.Markdown("### Writing Exercises")
+        exercises_heading = gr.Markdown("### Writing Exercises")
         panel_selector = gr.Dropdown(
             choices=[],
             label="Select panel",
@@ -598,6 +655,34 @@ with gr.Blocks() as demo:
             transcript_md,
             panel_selector,
             trace_json,
+        ],
+    )
+
+    language_input.change(
+        fn=_localized_ui_updates,
+        inputs=language_input,
+        outputs=[
+            subtitle_md,
+            language_input,
+            style_input,
+            reading_level_input,
+            panel_count,
+            live_feed_input,
+            use_serverless_api_input,
+            debug_mode_input,
+            negative_prompt_input,
+            seed_input,
+            randomize_seed_input,
+            width_input,
+            height_input,
+            guidance_scale_input,
+            num_steps_input,
+            generate_button,
+            exercises_heading,
+            panel_selector,
+            exercise_md,
+            answer_input,
+            submit_button,
         ],
     )
 

@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0.0",
-  "session_id": "sess-demo-es-001",
-  "language": "es",
+  "session_id": "sess-demo-pt-001",
+  "language": "pt",
   "style_id": "minimal",
   "source": {
     "link": "https://www.theguardian.com/technology/2026/jun/08/anti-slop-ai-art",
@@ -9,39 +9,39 @@
     "published_at": "Mon, 08 Jun 2026 13:00:25 GMT"
   },
   "article": {
-    "title": "Los artistas crean arte 'anti-basura' para rebelarse contra la IA: 'Nos lo han impuesto a la fuerza'",
-    "fulltext": "En respuesta al hiperrealismo de la IA, artistas y creativos se acercan a lo casero y lo imperfecto. A comienzos de este ano, un grupo de cineastas, directores comerciales e influyentes de la industria de la IA se reunio en Nueva York para la Runway AI Summit, un evento de un dia que exageraba el potencial de esta nueva tecnologia. Durante una charla, Rob Wrubel, cofundador y socio director de la agencia de publicidad Silverside de San Francisco, hablo de su trabajo en el anuncio Holiday Caravan 2025 de Coca-Cola, generado con IA. Wrubel dijo que lo increible de la IA es que permite pasar del guion a la produccion en solo dos semanas. Lo que no menciono fue que el anuncio, con osos polares computarizados y camiones de reparto falsos, fue muy rechazado por casi todos los que lo vieron. El rechazo publico se convirtio en una noticia propia. Aunque pudo crearse rapido, tambien se veia asi. Al comentar la reaccion, Wrubel admitio que la conversacion sobre el anuncio llego a ser casi tan importante como el anuncio mismo, porque saco a la luz preguntas que toda la industria creativa esta enfrentando ahora."
+    "title": "Artistas fazem arte 'anti-lixo' para se rebelar contra a IA: 'Foi empurrado garganta abaixo'",
+    "fulltext": "Em resposta ao hiper-realismo da IA, artistas e criativos estao se aproximando do caseiro e do imperfeito. No inicio deste ano, um grupo de cineastas, diretores comerciais e influenciadores da industria de IA se reuniu em Nova York para o Runway AI Summit, um evento de um dia que exaltava o potencial dessa nova tecnologia. Durante uma palestra, Rob Wrubel, cofundador e socio-diretor da agencia de publicidade Silverside, em Sao Francisco, falou sobre seu trabalho no anuncio Holiday Caravan 2025 da Coca-Cola, gerado por IA. Wrubel disse que o incrivel da IA e que ela permite ir do roteiro a producao em apenas duas semanas. O que ele nao mencionou foi que o anuncio, com ursos polares computadorizados e caminhoes de entrega falsos, foi muito rejeitado por quase todos que o viram. A rejeicao publica virou uma noticia propria. Talvez tenha sido criado rapidamente, e parecia mesmo. Ao comentar a reacao, Wrubel admitiu que a conversa sobre o anuncio ficou quase tao importante quanto o proprio anuncio, porque mostrou perguntas que toda a industria criativa enfrenta agora."
   },
   "simplified": {
-    "summary": "Las personas adultas usan el programa del jardin para practicar lectura y escritura con pasos simples.",
+    "summary": "Pessoas adultas usam o programa do jardim para praticar leitura e escrita em passos simples.",
     "level": "A2",
-    "keywords": ["adultos", "jardin", "lectura", "escritura"]
+    "keywords": ["adultos", "jardim", "leitura", "escrita"]
   },
   "characters": [
     {
       "id": "char_guide",
       "name": "Guia",
-      "description": "Mentor que usa lenguaje claro."
+      "description": "Mentor que usa linguagem simples."
     },
     {
       "id": "char_learner",
-      "name": "Estudiante",
-      "description": "Persona adulta que practica alfabetizacion."
+      "name": "Aprendiz",
+      "description": "Pessoa adulta que pratica alfabetizacao."
     }
   ],
   "panels": [
     {
       "panel_id": "panel_1",
       "frame_index": 1,
-      "scene_description": "Dos personas adultas leen una tarjeta breve de instrucciones en un jardin.",
+      "scene_description": "Duas pessoas adultas leem um cartao curto de instrucao em um jardim.",
       "dialogue": [
         {
           "character_id": "char_guide",
-          "text": "Leemos juntos una instruccion corta."
+          "text": "Lemos juntos uma instrucao curta."
         },
         {
           "character_id": "char_learner",
-          "text": "Ahora puedo explicarla con mis propias palabras."
+          "text": "Agora posso explicar com minhas proprias palavras."
         }
       ],
       "bubbles": [
@@ -60,15 +60,15 @@
     {
       "panel_id": "panel_2",
       "frame_index": 2,
-      "scene_description": "La estudiante escribe una frase corta sobre la actividad.",
+      "scene_description": "A aprendiz escreve uma frase curta sobre a atividade.",
       "dialogue": [
         {
           "character_id": "char_guide",
-          "text": "Escribe una idea clave del articulo."
+          "text": "Escreva uma ideia principal do artigo."
         },
         {
           "character_id": "char_learner",
-          "text": "El jardin me ayuda a practicar lectura cada semana."
+          "text": "O jardim me ajuda a praticar leitura toda semana."
         }
       ],
       "bubbles": [
@@ -87,15 +87,15 @@
     {
       "panel_id": "panel_3",
       "frame_index": 3,
-      "scene_description": "El grupo comparte lo que aprendio.",
+      "scene_description": "O grupo compartilha o que aprendeu.",
       "dialogue": [
         {
           "character_id": "char_guide",
-          "text": "Mejoraste tu escritura con palabras claras."
+          "text": "Voce melhorou sua escrita com palavras claras."
         },
         {
           "character_id": "char_learner",
-          "text": "Ahora tengo mas confianza para leer noticias."
+          "text": "Agora me sinto mais confiante para ler noticias."
         }
       ],
       "bubbles": [
@@ -116,9 +116,9 @@
     {
       "exercise_id": "ex_panel_1",
       "panel_id": "panel_1",
-      "prompt": "Leemos juntos una ____ corta.",
+      "prompt": "Lemos juntos uma ____ curta.",
       "blanks": ["____"],
-      "answer_key": ["instruccion"],
+      "answer_key": ["instrucao"],
       "feedback_rules": {
         "case_sensitive": false,
         "allow_trim_spaces": true
@@ -127,9 +127,9 @@
     {
       "exercise_id": "ex_panel_2",
       "panel_id": "panel_2",
-      "prompt": "Escribe una idea clave del ____.",
+      "prompt": "Escreva uma ideia principal do ____.",
       "blanks": ["____"],
-      "answer_key": ["articulo"],
+      "answer_key": ["artigo"],
       "feedback_rules": {
         "case_sensitive": false,
         "allow_trim_spaces": true
@@ -138,7 +138,7 @@
     {
       "exercise_id": "ex_panel_3",
       "panel_id": "panel_3",
-      "prompt": "Ahora tengo mas confianza para leer ____.",
+      "prompt": "Agora me sinto mais confiante para ler ____.",
       "blanks": ["____"],
       "answer_key": ["noticias"],
       "feedback_rules": {
@@ -152,7 +152,7 @@
       "ts": "2026-06-07T00:00:00+00:00",
       "step": "demo",
       "status": "ok",
-      "message": "Ejemplo deterministico"
+      "message": "Exemplo deterministico"
     }
   ]
 }
