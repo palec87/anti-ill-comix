@@ -45,6 +45,17 @@ def _clamp_dimension(value: Any) -> int:
     return v - (v % 32)
 
 
+def _normalize_model_repo_id(value: Any) -> str:
+    """Return a valid model repo id string from UI/config values."""
+    if isinstance(value, (list, tuple)):
+        if len(value) == 1:
+            value = value[0]
+        else:
+            value = value[0] if value else ""
+    model_repo_id = str(value or "stabilityai/sdxl-turbo").strip()
+    return model_repo_id or "stabilityai/sdxl-turbo"
+
+
 def _normalized_image_options(
     image_options: dict[str, Any] | None,
 ) -> dict[str, Any]:
@@ -67,7 +78,7 @@ def _normalized_image_options(
         options.get("use_serverless_image_api", False)
     )
     options["randomize_seed"] = bool(options.get("randomize_seed", True))
-    options["model_repo_id"] = str(
+    options["model_repo_id"] = _normalize_model_repo_id(
         options.get("model_repo_id", "stabilityai/sdxl-turbo")
     )
     options["negative_prompt"] = str(options.get("negative_prompt", ""))

@@ -97,6 +97,14 @@ def _merge_negative_prompt(user_prompt: str) -> str:
     return f"{user_prompt}, {IMAGE_TEXT_NEGATIVE_PROMPT}"
 
 
+def _normalize_model_repo_id(value: Any) -> str:
+    """Return a model repo id string that Diffusers can validate."""
+    if isinstance(value, (list, tuple)):
+        value = value[0] if value else ""
+    model_repo_id = str(value or "stabilityai/sdxl-turbo").strip()
+    return model_repo_id or "stabilityai/sdxl-turbo"
+
+
 def _is_serverless_image_enabled(options: dict[str, Any]) -> bool:
     option_value = bool(options.get("use_serverless_image_api", False))
     env_value = os.environ.get("HF_USE_SERVERLESS_IMAGE", "0").strip().lower()
@@ -155,6 +163,7 @@ def _generate_panel_image_serverless(
     num_inference_steps: int,
     seed: int,
 ) -> tuple[str, str]:
+    model_repo_id = _normalize_model_repo_id(model_repo_id)
     client = _get_inference_client()
     try:
         image = client.text_to_image(
@@ -210,6 +219,7 @@ def _generate_panel_image(
     num_inference_steps: int,
     use_serverless_api: bool,
 ) -> tuple[str, int, str]:
+    model_repo_id = _normalize_model_repo_id(model_repo_id)
     chosen_seed = random.randint(0, MAX_SEED) if randomize_seed else seed
     logger.info(f'\n\nIMAGE gen prompt:\n {prompt}\n\n')
     if use_serverless_api:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from comic_gen.errors import ModelPipelineError
+from comic_gen.comics import _normalized_image_options
 from comic_gen.image_backend import (
     IMAGE_TEXT_NEGATIVE_PROMPT,
     ImageGenerationError,
@@ -72,6 +73,14 @@ def _options(enable_live_images: bool = True) -> dict:
     }
 
 
+def test_normalized_image_options_unwraps_singleton_model_tuple():
+    options = _normalized_image_options(
+        {"model_repo_id": ("black-forest-labs/FLUX.1-schnell",)}
+    )
+
+    assert options["model_repo_id"] == "black-forest-labs/FLUX.1-schnell"
+
+
 def test_build_image_prompt_includes_session_and_panel_text():
     prompt = build_image_prompt(_document(), _panel())
 
@@ -90,7 +99,10 @@ def test_build_image_prompt_includes_session_and_panel_text():
 def test_generate_panel_image_uses_serverless_without_local_fallback(
     monkeypatch,
 ):
+    captured = {}
+
     def _fake_serverless(**kwargs):
+        captured["model_repo_id"] = kwargs["model_repo_id"]
         assert kwargs["seed"] == 5
         return "C:/tmp/panel_1.png", "serverless"
 
@@ -105,7 +117,7 @@ def test_generate_panel_image_uses_serverless_without_local_fallback(
         negative_prompt="",
         session_id="session-1",
         panel_id="panel_1",
-        model_repo_id="stabilityai/sdxl-turbo",
+        model_repo_id=("stabilityai/sdxl-turbo",),
         seed=5,
         randomize_seed=False,
         width=256,
@@ -118,6 +130,7 @@ def test_generate_panel_image_uses_serverless_without_local_fallback(
     assert out_path.endswith("panel_1.png")
     assert used_seed == 5
     assert image_source == "serverless"
+    assert captured["model_repo_id"] == "stabilityai/sdxl-turbo"
 
 
 def test_generate_image_panels_passes_stored_image_prompt(monkeypatch):
