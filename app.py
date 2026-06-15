@@ -42,7 +42,7 @@ LANGUAGE_OPTIONS = {
     "Deutsch": "de",
 }
 
-_VERSION = 0.19
+_VERSION = 0.21
 STYLE_OPTIONS = ["minimal", "newspaper", "watercolor", "retro"]
 READING_LEVEL_OPTIONS = ["A1", "A2", "B1", "B2"]
 MAX_SEED = 2**31 - 1
@@ -212,7 +212,8 @@ def _overlay_bubbles_html(
         bbox = bubble.get("bbox_px", [0, 0, 120, 60])
         x, y, box_w, box_h = bbox
         line = dialogue[index] if index < len(dialogue) else {}
-        text = html.escape(line.get("text", ""))
+        text_value = line.get("text") or bubble.get("text", "")
+        text = html.escape(str(text_value))
         left = max(0.0, min(100.0, (x / width) * 100))
         top = max(0.0, min(100.0, (y / height) * 100))
         bubble_w = max(8.0, min(100.0 - left, (box_w / width) * 100))

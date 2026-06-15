@@ -235,6 +235,17 @@ def translate_session_content(
             model_id=model_id,
             preserve_blanks=True,
         )
+        answer_key = item.get("answer_key", [])
+        if isinstance(answer_key, list):
+            item["answer_key"] = [
+                translate_text(
+                    answer,
+                    target_language,
+                    source_language=source_language,
+                    model_id=model_id,
+                )
+                for answer in answer_key
+            ]
 
     add_trace(
         document,

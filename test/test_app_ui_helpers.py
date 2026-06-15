@@ -183,6 +183,25 @@ def test_overlay_bubbles_html_uses_inline_styles_and_escapes_text():
     assert "Use &lt;simple&gt; words &amp; clear steps." in html
 
 
+def test_overlay_bubbles_html_falls_back_to_bubble_text():
+    panel = {
+        "panel_id": "P1",
+        "frame_index": 1,
+        "dialogue": [],
+        "bubbles": [
+            {
+                "bbox_px": [10, 10, 108, 30],
+                "text": "Texto traducido",
+            }
+        ],
+        "render": {"overlay_applied": True, "image_path": "missing.png"},
+    }
+
+    html = _overlay_bubbles_html(panel)
+
+    assert "Texto traducido" in html
+
+
 def test_panel_image_html_contains_overlay_inside_media_container():
     overlay = "<div class='overlay-layer'>Overlay</div>"
     panel = {

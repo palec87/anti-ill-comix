@@ -107,6 +107,38 @@ def _translate_or_fallback_to_english(
         )
 
 
+def _sync_overlay_text_from_dialogue(document: dict[str, Any]) -> None:
+    """Copy canonical dialogue text into bubble render metadata."""
+    synced = 0
+    for panel in document.get("panels", []):
+        if not isinstance(panel, dict):
+            continue
+        dialogue = panel.get("dialogue", [])
+        bubbles = panel.get("bubbles", [])
+        if not isinstance(dialogue, list) or not isinstance(bubbles, list):
+            continue
+        for index, bubble in enumerate(bubbles):
+            if not isinstance(bubble, dict) or index >= len(dialogue):
+                continue
+            line = dialogue[index]
+            if not isinstance(line, dict):
+                continue
+            text = str(line.get("text", "")).strip()
+            if not text:
+                continue
+            if bubble.get("text") != text:
+                bubble["text"] = text
+                synced += 1
+
+    if synced:
+        add_trace(
+            document,
+            "overlay_text",
+            "synced",
+            f"Synced {synced} bubble texts from dialogue",
+        )
+
+
 def generate_story_pipeline(
     document: dict[str, Any],
     panel_count: int,
@@ -152,6 +184,7 @@ def generate_story_pipeline(
             target_language,
             source_language="en",
         )
+        _sync_overlay_text_from_dialogue(document)
         add_trace(
             document,
             "model_pipeline",
@@ -200,3 +233,4 @@ def generate_story_pipeline(
                 target_language,
                 source_language=content_language or "en",
             )
+        _sync_overlay_text_from_dialogue(document)

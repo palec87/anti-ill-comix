@@ -150,7 +150,13 @@ def test_translate_session_content_translates_learner_fields(monkeypatch):
                 "dialogue": [{"text": "Hello"}],
             }
         ],
-        "exercises": [{"prompt": "Hello ____"}],
+        "exercises": [
+            {
+                "prompt": "Hello ____",
+                "blanks": ["____"],
+                "answer_key": ["world"],
+            }
+        ],
         "trace": [],
     }
 
@@ -163,4 +169,6 @@ def test_translate_session_content_translates_learner_fields(monkeypatch):
     assert document["panels"][0]["scene_description"] == "fr:A scene"
     assert document["panels"][0]["dialogue"][0]["text"] == "fr:Hello"
     assert document["exercises"][0]["prompt"] == "fr:Hello ____"
+    assert document["exercises"][0]["blanks"] == ["____"]
+    assert document["exercises"][0]["answer_key"] == ["fr:world"]
     assert document["trace"][-1]["status"] == "ok"

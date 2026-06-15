@@ -4,6 +4,8 @@ import pytest
 
 from comic_gen import comics
 from comic_gen.errors import UnifiedGenerationError
+from app import _overlay_bubbles_html, _render_transcript
+from comic_gen.exercise import evaluate_answer
 
 
 def _document() -> dict:
@@ -114,6 +116,7 @@ def test_generate_story_pipeline_translates_before_images(monkeypatch):
         captured["target_language"] = target_language
         document["panels"][0]["dialogue"][0]["text"] = "ES:Linea"
         document["exercises"][0]["prompt"] = "ES:Linea ____"
+        document["exercises"][0]["answer_key"] = ["linea"]
         return True
 
     def _fake_images(document, panels, options, strict_mode=False):
@@ -144,6 +147,16 @@ def test_generate_story_pipeline_translates_before_images(monkeypatch):
     assert captured["dialogue_for_image"] == "ES:Linea"
     assert captured["exercise_for_image"] == "ES:Linea ____"
     assert document["ui"]["content_language"] == "es"
+    assert document["panels"][0]["bubbles"][0]["text"] == "ES:Linea"
+    assert "ES:Linea" in _overlay_bubbles_html(document["panels"][0])
+    assert "ES:Linea" in _render_transcript(document)
+    assert document["exercises"][0]["answer_key"] == ["linea"]
+
+    ok, _ = evaluate_answer(document, "P1", "linea")
+    old_ok, _ = evaluate_answer(document, "P1", "line")
+
+    assert ok is True
+    assert old_ok is False
 
 
 def test_generate_story_pipeline_translation_failure_keeps_content(monkeypatch):
