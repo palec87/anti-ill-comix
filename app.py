@@ -42,7 +42,7 @@ LANGUAGE_OPTIONS = {
     "Deutsch": "de",
 }
 
-_VERSION = 0.24
+_VERSION = 0.25
 STYLE_OPTIONS = ["minimal", "newspaper", "watercolor", "retro"]
 READING_LEVEL_OPTIONS = ["A1", "A2", "B1", "B2"]
 MAX_SEED = 2**31 - 1
@@ -105,6 +105,76 @@ def _localized_ui_updates(language_label: str) -> tuple[Any, ...]:
             placeholder=_ui_text(language, "answer_placeholder"),
         ),
         gr.update(value=_ui_text(language, "submit")),
+    )
+
+
+def _localized_session_updates(
+    language_label: str,
+    selected_panel: str,
+    document: dict[str, Any],
+) -> tuple[Any, ...]:
+    """Update UI labels and re-render translated session content."""
+    language = _language_code_for_label(language_label)
+    updates = list(_localized_ui_updates(language_label))
+    if not document:
+        updates[16] = gr.update(
+            label=_ui_text(language, "select_panel"),
+            choices=[],
+            value=None,
+        )
+        updates[17] = gr.update(value=_ui_text(language, "unlock_exercises"))
+        updates[18] = gr.update(
+            label=_ui_text(language, "answer_label"),
+            placeholder=_ui_text(language, "answer_placeholder"),
+            value="",
+        )
+        return tuple(
+            updates
+            + [
+                document,
+                "",
+                "",
+                "",
+                "",
+                {"trace": []},
+                "",
+            ]
+        )
+
+    comics.apply_session_language(document, language)
+    document.setdefault("ui", {}).setdefault(
+        "selector_state",
+        {},
+    )["language"] = language
+    choices = _panel_choices(document)
+    choice_values = {value for _, value in choices}
+    selected = _panel_id_for_selection(selected_panel, document)
+    if selected not in choice_values:
+        selected = choices[0][1] if choices else None
+
+    exercise_value, answer_value = load_exercise(selected or "", document)
+    updates[16] = gr.update(
+        label=_ui_text(language, "select_panel"),
+        choices=choices,
+        value=selected,
+    )
+    updates[17] = gr.update(value=exercise_value)
+    updates[18] = gr.update(
+        label=_ui_text(language, "answer_label"),
+        placeholder=_ui_text(language, "answer_placeholder"),
+        value=answer_value,
+    )
+    return tuple(
+        updates
+        + [
+            document,
+            _render_source(document),
+            _render_summary(document),
+            _render_panels_html(document),
+            _render_transcript(document),
+            {"trace": document.get("trace", [])},
+            "",
+        ]
     )
 
 
@@ -641,8 +711,8 @@ with gr.Blocks() as demo:
     )
 
     language_input.change(
-        fn=_localized_ui_updates,
-        inputs=language_input,
+        fn=_localized_session_updates,
+        inputs=[language_input, panel_selector, session_state],
         outputs=[
             subtitle_md,
             language_input,
@@ -664,6 +734,13 @@ with gr.Blocks() as demo:
             exercise_md,
             answer_input,
             submit_button,
+            session_state,
+            source_md,
+            summary_md,
+            panel_html,
+            transcript_md,
+            trace_json,
+            feedback_md,
         ],
     )
 

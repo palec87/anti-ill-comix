@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any
 import logging
 
@@ -107,6 +108,58 @@ def _translate_or_fallback_to_english(
         )
 
 
+def _store_canonical_content(document: dict[str, Any]) -> None:
+    """Store canonical English learner content for later retranslation."""
+    canonical_panels: list[dict[str, Any]] = []
+    for panel in document.get("panels", []):
+        if not isinstance(panel, dict):
+            continue
+        canonical_panels.append(
+            {
+                "panel_id": panel.get("panel_id", ""),
+                "frame_index": panel.get("frame_index", 0),
+                "scene_description": panel.get("scene_description", ""),
+                "dialogue": deepcopy(panel.get("dialogue", [])),
+                "bubbles": deepcopy(panel.get("bubbles", [])),
+            }
+        )
+
+    document["canonical"] = {
+        "simplified": deepcopy(document.get("simplified", {})),
+        "characters": deepcopy(document.get("characters", [])),
+        "panels": canonical_panels,
+        "exercises": deepcopy(document.get("exercises", [])),
+    }
+
+
+def _restore_canonical_content(document: dict[str, Any]) -> bool:
+    """Restore canonical learner fields while preserving render metadata."""
+    canonical = document.get("canonical")
+    if not isinstance(canonical, dict):
+        return False
+
+    render_by_panel = {
+        str(panel.get("panel_id", "")): deepcopy(panel.get("render", {}))
+        for panel in document.get("panels", [])
+        if isinstance(panel, dict)
+    }
+    restored_panels: list[dict[str, Any]] = []
+    for panel in canonical.get("panels", []):
+        if not isinstance(panel, dict):
+            continue
+        restored = deepcopy(panel)
+        panel_id = str(restored.get("panel_id", ""))
+        if panel_id in render_by_panel:
+            restored["render"] = render_by_panel[panel_id]
+        restored_panels.append(restored)
+
+    document["simplified"] = deepcopy(canonical.get("simplified", {}))
+    document["characters"] = deepcopy(canonical.get("characters", []))
+    document["panels"] = restored_panels
+    document["exercises"] = deepcopy(canonical.get("exercises", []))
+    return True
+
+
 def _sync_overlay_text_from_dialogue(document: dict[str, Any]) -> None:
     """Copy canonical dialogue text into bubble render metadata."""
     synced = 0
@@ -137,6 +190,37 @@ def _sync_overlay_text_from_dialogue(document: dict[str, Any]) -> None:
             "synced",
             f"Synced {synced} bubble texts from dialogue",
         )
+
+
+def apply_session_language(
+    document: dict[str, Any],
+    target_language: str,
+) -> bool:
+    """Retranslate existing session content without regenerating images."""
+    if not document:
+        return False
+
+    restored = _restore_canonical_content(document)
+    if not restored:
+        document["language"] = target_language
+        document.setdefault("ui", {})["content_language"] = target_language
+        _sync_overlay_text_from_dialogue(document)
+        return False
+
+    document["language"] = target_language
+    _translate_or_fallback_to_english(
+        document,
+        target_language,
+        source_language="en",
+    )
+    _sync_overlay_text_from_dialogue(document)
+    add_trace(
+        document,
+        "language_switch",
+        "ok",
+        f"Rendered existing session for {target_language}",
+    )
+    return True
 
 
 def generate_story_pipeline(
@@ -179,6 +263,7 @@ def generate_story_pipeline(
         document["characters"] = characters
         document["panels"] = panels
         document["exercises"] = exercises_data
+        _store_canonical_content(document)
         _translate_or_fallback_to_english(
             document,
             target_language,
@@ -225,6 +310,8 @@ def generate_story_pipeline(
         )
         document.setdefault("simplified", {})["level"] = reading_level
         content_language = str(document.get("language", target_language))
+        if content_language == "en":
+            _store_canonical_content(document)
         if content_language == target_language:
             document.setdefault("ui", {})["content_language"] = target_language
         else:

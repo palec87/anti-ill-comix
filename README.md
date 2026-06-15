@@ -17,19 +17,19 @@ Anti Ill Comix is a Gradio application that turns international news into simple
 
 I happen to know one such community in the south of Portugal, and wanted to test automatic learning content generation with the following objectives:
 
-- To be relevant to adults by content based on news.
+- To be relevant to adults by content based on current news via RSS feed (not implemented yet).
 - Language adjusted by sources from national news.
 - To be concise in a form of comics.
-- Article summaries complexity skill level adjustable
+- Article summaries complexity skill level adjustable.
 - Accompanied with fill in writing exercises.
 
 
-The app fetches or loads a news article, simplifies it, turns it into 3-5 comic panels, generates panel images, overlays dialogue bubbles in the UI, and attaches one fill-in-the-blank exercise to each panel.
+The app fetches or loads a news article, simplifies it, turns it into 3-5 comic panels, generates panel images, overlays dialogue bubbles in the UI, and attaches one fill-in-the-blank exercise for each of the panels.
 
-## What It Does
+## What does it contain
 
 - Select an output language: English, Portuguese, Spanish, French, or German.
-- Select a reading level from A1 to B2.
+- Select a difficulty level from A1 to B2.
 - Select a visual style such as minimal, newspaper, watercolor, or retro.
 - Generate a short comic strip from a live RSS article or deterministic demo content.
 - Translate learner-facing generated content with a translation model.
@@ -41,7 +41,7 @@ The app fetches or loads a news article, simplifies it, turns it into 3-5 comic 
 
 1. Fetch a source article from RSS or load a deterministic example from `examples/`.
 2. Build a canonical session JSON with source, article, language, style, and UI state.
-3. Generate simplified learner content in canonical English.
+3. Generate simplified content with exercises in canonical English.
 4. Normalize characters, panels, dialogue, bubbles, and exercises.
 5. Translate learner-facing fields into the selected language.
 6. Generate or fall back to comic panel images.
@@ -97,7 +97,7 @@ For Hugging Face model/serverless paths, set:
 HF_TOKEN=your_hugging_face_token
 ```
 
-Serverless text and image generation can be toggled from the app's advanced options. If live model generation fails, the app records the error in trace/debug output and falls back where possible.
+Serverless API text and image generation is set to default, local or Spaces generation can be toggled from the app's advanced options. If live model generation fails, the app records the error in trace/debug output and falls back where possible.
 
 The image prompt intentionally asks for scene art only. Speech text is rendered separately by the UI overlay so generated images should not contain readable words or speech bubbles.
 
@@ -105,19 +105,19 @@ The image prompt intentionally asks for scene art only. Speech text is rendered 
 
 Install dependencies:
 
-```powershell
+```bash
 uv sync
 ```
 
 Run the app:
 
-```powershell
+```bash
 gradio app.py
 ```
 
 Run tests:
 
-```powershell
+```bash
 uv run pytest
 ```
 
@@ -164,4 +164,9 @@ The schema version is currently:
 1.0.0
 ```
 
-Additive fields are preferred so existing demo sessions and saved sessions remain compatible.
+## Known issues
+
+1. Translation issues with special characters
+2. Appearance of empty text bubbles too often in the image generation step, even with negative prompts.
+3. Inconsistent translation fallback
+4. Missing RSS due to uncertainty licensing resolution.

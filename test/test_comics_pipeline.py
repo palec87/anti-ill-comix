@@ -147,6 +147,9 @@ def test_generate_story_pipeline_translates_before_images(monkeypatch):
     assert captured["dialogue_for_image"] == "ES:Linea"
     assert captured["exercise_for_image"] == "ES:Linea ____"
     assert document["ui"]["content_language"] == "es"
+    assert document["canonical"]["simplified"]["summary"] == "Short summary"
+    assert document["canonical"]["panels"][0]["dialogue"][0]["text"] == "Line"
+    assert document["canonical"]["exercises"][0]["answer_key"] == ["line"]
     assert document["panels"][0]["bubbles"][0]["text"] == "ES:Linea"
     assert "ES:Linea" in _overlay_bubbles_html(document["panels"][0])
     assert "ES:Linea" in _render_transcript(document)

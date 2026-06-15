@@ -3,6 +3,7 @@ from __future__ import annotations
 from app import (
     READING_LEVEL_OPTIONS,
     _language_code_for_label,
+    _localized_session_updates,
     _localized_ui_updates,
     _overlay_bubbles_html,
     _panel_choices,
@@ -13,6 +14,90 @@ from app import (
     load_exercise,
 )
 from comic_gen.exercise import evaluate_answer
+
+
+def _switch_document() -> dict:
+    return {
+        "language": "en",
+        "style_id": "minimal",
+        "source": {
+            "publisher": "Example",
+            "link": "https://example.test",
+            "published_at": "2026-06-15",
+        },
+        "article": {"title": "News", "fulltext": "Short article"},
+        "simplified": {
+            "summary": "Short summary",
+            "level": "A2",
+            "keywords": ["reading"],
+        },
+        "characters": [
+            {"id": "A1", "name": "Guide", "description": "A guide"}
+        ],
+        "panels": [
+            {
+                "panel_id": "P1",
+                "frame_index": 1,
+                "scene_description": "Scene",
+                "dialogue": [{"character_id": "A1", "text": "Line"}],
+                "bubbles": [{"bbox_px": [10, 10, 108, 30], "text": "Line"}],
+                "render": {
+                    "image_path": "assets/panel_1.png",
+                    "image_source": "serverless",
+                    "seed": 123,
+                    "image_prompt": "Plain comic scene only.",
+                    "overlay_applied": True,
+                },
+            }
+        ],
+        "exercises": [
+            {
+                "exercise_id": "E1",
+                "panel_id": "P1",
+                "prompt": "Line ____",
+                "blanks": ["____"],
+                "answer_key": ["line"],
+                "feedback_rules": {
+                    "case_sensitive": False,
+                    "allow_trim_spaces": True,
+                },
+            }
+        ],
+        "canonical": {
+            "simplified": {
+                "summary": "Short summary",
+                "level": "A2",
+                "keywords": ["reading"],
+            },
+            "characters": [
+                {"id": "A1", "name": "Guide", "description": "A guide"}
+            ],
+            "panels": [
+                {
+                    "panel_id": "P1",
+                    "frame_index": 1,
+                    "scene_description": "Scene",
+                    "dialogue": [{"character_id": "A1", "text": "Line"}],
+                    "bubbles": [{"bbox_px": [10, 10, 108, 30]}],
+                }
+            ],
+            "exercises": [
+                {
+                    "exercise_id": "E1",
+                    "panel_id": "P1",
+                    "prompt": "Line ____",
+                    "blanks": ["____"],
+                    "answer_key": ["line"],
+                    "feedback_rules": {
+                        "case_sensitive": False,
+                        "allow_trim_spaces": True,
+                    },
+                }
+            ],
+        },
+        "trace": [],
+        "ui": {"content_language": "en"},
+    }
 
 
 def _document() -> dict:
@@ -75,6 +160,80 @@ def test_ui_text_falls_back_to_english():
     assert _language_code_for_label("Deutsch") == "de"
     assert _ui_text("es", "generate") == "Generar comic"
     assert _ui_text("xx", "generate") == "Generate Comic Strip"
+
+
+def test_language_switch_to_spanish_retranslates_without_regenerating(
+    monkeypatch,
+):
+    document = _switch_document()
+    render_before = dict(document["panels"][0]["render"])
+    calls = {"translations": 0}
+
+    def _fake_translate(doc, target_language, **kwargs):
+        calls["translations"] += 1
+        doc["simplified"]["summary"] = "ES:Resumen"
+        doc["panels"][0]["dialogue"][0]["text"] = "ES:Linea"
+        doc["exercises"][0]["prompt"] = "ES:Linea ____"
+        doc["exercises"][0]["answer_key"] = ["linea"]
+        return True
+
+    def _unexpected_generation(*args, **kwargs):
+        raise AssertionError("language switch must not regenerate")
+
+    monkeypatch.setattr(
+        "comic_gen.comics.translate_session_content",
+        _fake_translate,
+    )
+    monkeypatch.setattr(
+        "app.comics.generate_story_pipeline",
+        _unexpected_generation,
+    )
+
+    updates = _localized_session_updates("Espanol", "P1", document)
+    updated = updates[20]
+
+    assert calls["translations"] == 1
+    assert updated["language"] == "es"
+    assert updated["panels"][0]["render"] == render_before
+    assert updated["panels"][0]["bubbles"][0]["text"] == "ES:Linea"
+    assert "ES:Linea" in updates[23]
+    assert "ES:Linea" in updates[24]
+    assert updated["exercises"][0]["prompt"] == "ES:Linea ____"
+    assert updated["exercises"][0]["answer_key"] == ["linea"]
+
+
+def test_language_switch_back_to_english_restores_canonical(monkeypatch):
+    document = _switch_document()
+    document["language"] = "es"
+    document["ui"]["content_language"] = "es"
+    document["simplified"]["summary"] = "ES:Resumen"
+    document["panels"][0]["dialogue"][0]["text"] = "ES:Linea"
+    document["panels"][0]["bubbles"][0]["text"] = "ES:Linea"
+    document["exercises"][0]["prompt"] = "ES:Linea ____"
+    document["exercises"][0]["answer_key"] = ["linea"]
+    render_before = dict(document["panels"][0]["render"])
+
+    monkeypatch.setattr(
+        "comic_gen.comics.translate_session_content",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("English restore must not translate")
+        ),
+    )
+
+    updates = _localized_session_updates("English", "P1", document)
+    updated = updates[20]
+
+    assert updated["language"] == "en"
+    assert updated["ui"]["content_language"] == "en"
+    assert updated["simplified"]["summary"] == "Short summary"
+    assert updated["panels"][0]["dialogue"][0]["text"] == "Line"
+    assert updated["panels"][0]["bubbles"][0]["text"] == "Line"
+    assert updated["panels"][0]["render"] == render_before
+    assert "Line" in updates[23]
+    assert "ES:Linea" not in updates[23]
+    assert "Line" in updates[24]
+    assert updated["exercises"][0]["prompt"] == "Line ____"
+    assert updated["exercises"][0]["answer_key"] == ["line"]
 
 
 def test_localized_ui_updates_match_language_change_outputs():
