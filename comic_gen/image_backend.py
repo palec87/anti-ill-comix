@@ -257,7 +257,7 @@ def _generate_panel_image(
         model_repo_id,
         token=token,
     )
-
+    pipe.to(device="cuda", dtype=torch.float16)
     image = pipe(
         prompt=prompt,
         negative_prompt=negative_prompt,
