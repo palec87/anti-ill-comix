@@ -1,5 +1,24 @@
 :root {
+  color-scheme: light;
   font-family: Georgia, "Times New Roman", Times, serif;
+  --body-background-fill: #f4efe3;
+  --body-text-color: #171717;
+  --background-fill-primary: #fbf8ef;
+  --background-fill-secondary: #f8f3e8;
+  --block-background-fill: rgba(255, 252, 244, 0.88);
+  --block-border-color: rgba(23, 23, 23, 0.45);
+  --border-color-primary: rgba(23, 23, 23, 0.55);
+  --border-color-accent: #171717;
+  --input-background-fill: #fffaf0;
+  --input-border-color: #171717;
+  --button-primary-background-fill: #171717;
+  --button-primary-text-color: #fbf8ef;
+  --button-secondary-background-fill: #fbf8ef;
+  --button-secondary-text-color: #171717;
+  --checkbox-background-color: #fffaf0;
+  --checkbox-border-color: #171717;
+  --link-text-color: #7f1d1d;
+  --link-text-color-hover: #9b2121;
   background:
     radial-gradient(circle at 20% 0%, rgba(155, 33, 33, 0.06), transparent 24rem),
     repeating-linear-gradient(
@@ -15,6 +34,7 @@
 
 body,
 .gradio-container {
+  color-scheme: light;
   background:
     repeating-linear-gradient(
       90deg,
@@ -24,6 +44,51 @@ body,
       transparent 7px
     ),
     #f4efe3 !important;
+  color: #171717 !important;
+}
+
+.dark,
+html.dark,
+body.dark,
+.gradio-container.dark {
+  color-scheme: light !important;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(17, 17, 17, 0.018),
+      rgba(17, 17, 17, 0.018) 1px,
+      transparent 1px,
+      transparent 7px
+    ),
+    #f4efe3 !important;
+  color: #171717 !important;
+}
+
+.gradio-container * {
+  scrollbar-color: #6f6254 #f4efe3;
+}
+
+.gradio-container a {
+  color: #7f1d1d !important;
+}
+
+.gradio-container label,
+.gradio-container span,
+.gradio-container p,
+.gradio-container li,
+.gradio-container h1,
+.gradio-container h2,
+.gradio-container h3,
+.gradio-container h4,
+.gradio-container h5,
+.gradio-container h6,
+.gradio-container .prose,
+.gradio-container .markdown,
+.gradio-container .json,
+.gradio-container .label-wrap,
+.gradio-container .wrap,
+.gradio-container .block {
+  color: #171717 !important;
 }
 
 #app {
@@ -94,6 +159,10 @@ body,
 #app input,
 #app textarea,
 #app select,
+#app [role="textbox"],
+#app [role="combobox"],
+#app [data-testid="textbox"],
+#app [data-testid="dropdown"],
 #app .wrap,
 #app .block,
 #app .form,
@@ -101,9 +170,103 @@ body,
   border-radius: 2px !important;
 }
 
+#app input,
+#app textarea,
+#app select,
+#app [role="textbox"],
+#app [role="combobox"] {
+  background: #fffaf0 !important;
+  color: #171717 !important;
+  border-color: #171717 !important;
+  caret-color: #171717 !important;
+}
+
+#app input::placeholder,
+#app textarea::placeholder {
+  color: #6f6254 !important;
+  opacity: 1 !important;
+}
+
 #app .block {
   background: rgba(255, 252, 244, 0.72) !important;
   border-color: rgba(23, 23, 23, 0.45) !important;
+}
+
+#app .block,
+#app .form,
+#app .wrap,
+#app .container,
+#app .panel,
+#app .input-container,
+#app .dropdown,
+#app .checkbox,
+#app .slider,
+#app .json,
+#app .markdown,
+#app .prose {
+  background-color: rgba(255, 252, 244, 0.72) !important;
+  color: #171717 !important;
+}
+
+#app [role="listbox"],
+#app [role="option"],
+.gradio-container [role="listbox"],
+.gradio-container [role="option"] {
+  background: #fffaf0 !important;
+  color: #171717 !important;
+  border-color: #171717 !important;
+}
+
+#app [role="option"]:hover,
+.gradio-container [role="option"]:hover {
+  background: #eadfc9 !important;
+  color: #171717 !important;
+}
+
+#app input[type="checkbox"] {
+  accent-color: #171717;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin: 0 6px 0 0;
+  display: inline-grid;
+  place-content: center;
+  background: #fffaf0 !important;
+  border: 1.5px solid #171717 !important;
+  border-radius: 2px !important;
+  vertical-align: middle;
+}
+
+#app input[type="checkbox"]::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  transform: scale(0);
+  background: #fbf8ef;
+  clip-path: polygon(14% 44%, 0 60%, 38% 100%, 100% 18%, 84% 4%, 36% 68%);
+}
+
+#app input[type="checkbox"]:checked {
+  background: #171717 !important;
+  border-color: #171717 !important;
+}
+
+#app input[type="checkbox"]:checked::before {
+  transform: scale(1);
+}
+
+#app input[type="checkbox"]:focus-visible {
+  outline: 2px solid #9b2121 !important;
+  outline-offset: 2px;
+}
+
+#app .checkbox input:checked + span,
+#app .checkbox input:checked ~ span {
+  color: #171717 !important;
+}
+
+#app input[type="range"] {
+  accent-color: #9b2121;
 }
 
 #app label span {
@@ -115,6 +278,7 @@ body,
   border: 1px solid #171717 !important;
   border-radius: 2px !important;
   background: rgba(250, 247, 239, 0.72) !important;
+  color: #171717 !important;
 }
 
 #app summary {
@@ -236,4 +400,43 @@ body,
   border-radius: 2px;
   background: #fbf8ef;
   border: 1px dashed #171717;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root,
+  body,
+  .gradio-container,
+  #app {
+    color-scheme: light !important;
+    color: #171717 !important;
+  }
+
+  body,
+  .gradio-container {
+    background:
+      repeating-linear-gradient(
+        90deg,
+        rgba(17, 17, 17, 0.018),
+        rgba(17, 17, 17, 0.018) 1px,
+        transparent 1px,
+        transparent 7px
+      ),
+      #f4efe3 !important;
+  }
+
+  #app,
+  #app .block,
+  #app .form,
+  #app .wrap,
+  #app .container,
+  #app details,
+  #app input,
+  #app textarea,
+  #app select,
+  #app [role="textbox"],
+  #app [role="combobox"] {
+    background-color: #fbf8ef !important;
+    color: #171717 !important;
+    border-color: #171717 !important;
+  }
 }

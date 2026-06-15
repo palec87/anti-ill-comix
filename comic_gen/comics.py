@@ -46,17 +46,6 @@ def _clamp_dimension(value: Any) -> int:
     return v - (v % 32)
 
 
-def _normalize_model_repo_id(value: Any) -> str:
-    """Return a valid model repo id string from UI/config values."""
-    if isinstance(value, (list, tuple)):
-        if len(value) == 1:
-            value = value[0]
-        else:
-            value = value[0] if value else ""
-    model_repo_id = str(value or "black-forest-labs/FLUX.1-schnell").strip()
-    return model_repo_id or "black-forest-labs/FLUX.1-schnell"
-
-
 def _normalized_image_options(
     image_options: dict[str, Any] | None,
 ) -> dict[str, Any]:
@@ -79,11 +68,43 @@ def _normalized_image_options(
         options.get("use_serverless_image_api", False)
     )
     options["randomize_seed"] = bool(options.get("randomize_seed", True))
-    options["model_repo_id"] = _normalize_model_repo_id(
-        options.get("model_repo_id", "black-forest-labs/FLUX.1-schnell")
+    model_repo_id = options.get(
+        "model_repo_id",
+        "black-forest-labs/FLUX.1-schnell",
     )
+    if isinstance(model_repo_id, tuple) and len(model_repo_id) == 1:
+        model_repo_id = model_repo_id[0]
+    options["model_repo_id"] = model_repo_id
     options["negative_prompt"] = str(options.get("negative_prompt", ""))
     return options
+
+
+def _translate_or_fallback_to_english(
+    document: dict[str, Any],
+    target_language: str,
+    source_language: str = "en",
+) -> None:
+    """Translate learner content or mark English fallback."""
+    ui = document.setdefault("ui", {})
+    if target_language == "en":
+        ui["content_language"] = "en"
+        return
+
+    try:
+        translated = translate_session_content(
+            document,
+            target_language,
+            source_language=source_language,
+        )
+        ui["content_language"] = target_language if translated else source_language
+    except Exception as exc:
+        ui["content_language"] = "en"
+        add_trace(
+            document,
+            "translation",
+            "fallback",
+            f"Translation failed, keeping English content: {exc}",
+        )
 
 
 def generate_story_pipeline(
@@ -126,19 +147,11 @@ def generate_story_pipeline(
         document["characters"] = characters
         document["panels"] = panels
         document["exercises"] = exercises_data
-        try:
-            translate_session_content(
-                document,
-                target_language,
-                source_language="en",
-            )
-        except Exception as exc:
-            add_trace(
-                document,
-                "translation",
-                "fallback",
-                f"Translation failed, keeping canonical content: {exc}",
-            )
+        _translate_or_fallback_to_english(
+            document,
+            target_language,
+            source_language="en",
+        )
         add_trace(
             document,
             "model_pipeline",
@@ -178,16 +191,12 @@ def generate_story_pipeline(
             document,
         )
         document.setdefault("simplified", {})["level"] = reading_level
-        try:
-            translate_session_content(
+        content_language = str(document.get("language", target_language))
+        if content_language == target_language:
+            document.setdefault("ui", {})["content_language"] = target_language
+        else:
+            _translate_or_fallback_to_english(
                 document,
                 target_language,
-                source_language=str(document.get("language", target_language)),
-            )
-        except Exception as translate_exc:
-            add_trace(
-                document,
-                "translation",
-                "fallback",
-                f"Translation failed after deterministic fallback: {translate_exc}",
+                source_language=content_language or "en",
             )

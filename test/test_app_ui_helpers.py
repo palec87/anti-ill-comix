@@ -3,9 +3,11 @@ from __future__ import annotations
 from app import (
     READING_LEVEL_OPTIONS,
     _language_code_for_label,
+    _localized_ui_updates,
     _overlay_bubbles_html,
     _panel_choices,
     _panel_image_html,
+    _render_summary,
     _render_transcript,
     _ui_text,
     load_exercise,
@@ -75,6 +77,17 @@ def test_ui_text_falls_back_to_english():
     assert _ui_text("xx", "generate") == "Generate Comic Strip"
 
 
+def test_localized_ui_updates_match_language_change_outputs():
+    updates = _localized_ui_updates("Espanol")
+
+    assert len(updates) == 20
+    assert updates[7]["label"] == "Prompt negativo"
+    assert updates[7]["placeholder"] == (
+        "Exclusiones opcionales de calidad o estilo"
+    )
+    assert updates[8]["label"] == "Semilla"
+
+
 def test_load_exercise_uses_canonical_panel_id():
     prompt, answer = load_exercise("P1", _document())
 
@@ -108,6 +121,23 @@ def test_render_transcript_uses_localized_heading():
 
     assert transcript.startswith("### Transkript")
     assert "BILD 1" in transcript
+
+
+def test_render_summary_shows_localized_english_fallback_note():
+    document = {
+        "language": "es",
+        "ui": {"content_language": "en"},
+        "simplified": {
+            "summary": "English summary",
+            "level": "A2",
+            "keywords": ["news"],
+        },
+    }
+
+    summary = _render_summary(document)
+
+    assert "English summary" in summary
+    assert "El contenido aparece en ingles" in summary
 
 
 def test_exercise_feedback_uses_document_language():

@@ -42,7 +42,7 @@ LANGUAGE_OPTIONS = {
     "Deutsch": "de",
 }
 
-_VERSION = 0.14
+_VERSION = 0.15
 STYLE_OPTIONS = ["minimal", "newspaper", "watercolor", "retro"]
 READING_LEVEL_OPTIONS = ["A1", "A2", "B1", "B2"]
 MAX_SEED = 2**31 - 1
@@ -86,7 +86,6 @@ def _localized_ui_updates(language_label: str) -> tuple[Any, ...]:
         gr.update(label=_ui_text(language, "panel_count")),
         gr.update(label=_ui_text(language, "live_feed")),
         gr.update(label=_ui_text(language, "serverless")),
-        gr.update(label=_ui_text(language, "debug")),
         gr.update(
             label=_ui_text(language, "negative_prompt"),
             placeholder=_ui_text(language, "negative_prompt_placeholder"),
@@ -126,10 +125,19 @@ def _render_summary(document: dict[str, Any]) -> str:
     language = str(document.get("language", "en"))
     simplified = document["simplified"]
     keywords = ", ".join(simplified.get("keywords", []))
+    fallback_note = ""
+    content_language = str(document.get("ui", {}).get("content_language", language))
+    if language != "en" and content_language == "en":
+        fallback_note = (
+            "\n\n"
+            "> "
+            + _ui_text(language, "content_fallback_english")
+        )
     return (
         f"### {_ui_text(language, 'summary')} ({simplified['level']})\n"
         f"{simplified['summary']}\n\n"
         f"{_ui_text(language, 'keywords')}: {keywords}"
+        f"{fallback_note}"
     )
 
 
@@ -241,7 +249,6 @@ def _overlay_bubbles_html(
 
 def _render_panels_html(
     document: dict[str, Any],
-    debug_mode: bool = False,
 ) -> str:
     cards = []
     for panel in document.get("panels", []):
@@ -249,24 +256,6 @@ def _render_panels_html(
             panel,
             _overlay_bubbles_html(panel),
         )
-        if debug_mode:
-            cards.append(
-                (
-                    "<div class='panel-card debug-card'>"
-                    f"<h4>Panel {panel['frame_index']}</h4>"
-                    "<div class='debug-row'>"
-                    "<div class='debug-label'>Composed image + bubbles</div>"
-                    f"{composed_html}"
-                    "</div>"
-                    "<div class='debug-row'>"
-                    "<div class='debug-label'>Overlay preview</div>"
-                    f"{_overlay_bubbles_html(panel, standalone=True)}"
-                    "</div>"
-                    "</div>"
-                )
-            )
-            continue
-
         cards.append(
             (
                 "<div class='panel-card'>"
@@ -341,7 +330,6 @@ def generate_strip(
     height: int,
     guidance_scale: float,
     num_inference_steps: int,
-    debug_mode: bool,
 ) -> tuple[dict[str, Any], str, str, str, str, list[str], str, dict[str, Any]]:
     language = LANGUAGE_OPTIONS.get(language_label, "en")
     payload = backends.fetch_article(
@@ -356,7 +344,6 @@ def generate_strip(
         "selector_state",
         {},
     )["reading_level"] = reading_level
-    document.setdefault("ui", {})["debug_mode"] = debug_mode
 
     # Toggle optional HF serverless generation path used for text and image.
     os.environ["HF_USE_SERVERLESS"] = "1" if use_serverless_api else "0"
@@ -399,7 +386,7 @@ def generate_strip(
         document,
         _render_source(document),
         _render_summary(document),
-        _render_panels_html(document, debug_mode=debug_mode),
+        _render_panels_html(document),
         _render_transcript(document),
         choices,
         first_panel,
@@ -421,7 +408,6 @@ def generate_strip_ui(
     height: int,
     guidance_scale: float,
     num_inference_steps: int,
-    debug_mode: bool,
     progress: gr.Progress = gr.Progress(track_tqdm=True),
 ) -> tuple[dict[str, Any], str, str, str, str, gr.Dropdown, dict[str, Any]]:
     progress(0.05, desc="Fetching article")
@@ -448,7 +434,6 @@ def generate_strip_ui(
         height,
         guidance_scale,
         num_inference_steps,
-        debug_mode,
     )
     progress(1.0, desc="Comic strip ready")
 
@@ -552,10 +537,6 @@ with gr.Blocks() as demo:
                 label="Use HF serverless API for text + image generation",
                 value=False,
             )
-            debug_mode_input = gr.Checkbox(
-                label="Debug panel rendering",
-                value=False,
-            )
             negative_prompt_input = gr.Textbox(
                 label="Negative prompt",
                 placeholder="Optional quality or style exclusions",
@@ -645,7 +626,6 @@ with gr.Blocks() as demo:
             height_input,
             guidance_scale_input,
             num_steps_input,
-            debug_mode_input,
         ],
         outputs=[
             session_state,
@@ -669,7 +649,6 @@ with gr.Blocks() as demo:
             panel_count,
             live_feed_input,
             use_serverless_api_input,
-            debug_mode_input,
             negative_prompt_input,
             seed_input,
             randomize_seed_input,

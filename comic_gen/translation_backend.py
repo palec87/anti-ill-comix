@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 from typing import Any
 
 from .trace import add_trace
@@ -17,6 +18,18 @@ NLLB_LANGUAGE_CODES = {
 }
 PLACEHOLDER_TOKEN = "__BLANK_PLACEHOLDER__"
 _PIPELINES: dict[tuple[str, str, str], Any] = {}
+
+
+def _ensure_utf8_stdio() -> None:
+    """Keep model logging from failing on non-ASCII translation text."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if not callable(reconfigure):
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="backslashreplace")
+        except (OSError, ValueError):
+            continue
 
 
 def _get_translation_pipeline(
@@ -38,6 +51,7 @@ def _get_translation_pipeline(
     if cache_key in _PIPELINES:
         return _PIPELINES[cache_key]
 
+    _ensure_utf8_stdio()
     from transformers import pipeline
 
     translator = pipeline(
@@ -81,12 +95,18 @@ def translate_text(
     Returns:
         Translated text, or the source text for English/no-op cases.
     """
+    logger.info("Translating text to %s", target_language)
     value = str(text or "").strip()
     if not value:
         return value
 
-    source_code = NLLB_LANGUAGE_CODES.get(source_language, "eng_Latn")
-    target_code = NLLB_LANGUAGE_CODES.get(target_language, "eng_Latn")
+    if source_language not in NLLB_LANGUAGE_CODES:
+        raise ValueError(f"Unsupported source language: {source_language}")
+    if target_language not in NLLB_LANGUAGE_CODES:
+        raise ValueError(f"Unsupported target language: {target_language}")
+
+    source_code = NLLB_LANGUAGE_CODES[source_language]
+    target_code = NLLB_LANGUAGE_CODES[target_language]
     if source_code == target_code:
         return value
 
@@ -96,6 +116,7 @@ def translate_text(
         protected = protected.replace("____", PLACEHOLDER_TOKEN)
 
     translator = _get_translation_pipeline(model_id, source_code, target_code)
+    _ensure_utf8_stdio()
     translated = _translation_result_text(translator(protected))
     translated = translated or value
     if preserve_blanks:

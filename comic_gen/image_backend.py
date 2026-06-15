@@ -40,14 +40,13 @@ def _compact_text(value: Any, max_chars: int = 320) -> str:
 
 def build_image_prompt(document: dict[str, Any], panel: dict[str, Any]) -> str:
     """Build a replayable image prompt from session and panel text."""
-    scene = _compact_text(panel.get("scene_description", ""), 70)
+    scene = _compact_text(panel.get("scene_description", ""), 128)
     style_id = _compact_text(document.get("style_id", "minimal"), 32)
     parts = [
         "Plain comic scene only.",
         "Characters and background only.",
         f"Scene: {scene}.",
         f"Keep strict {style_id} style.",
-        "Empty margins for later overlay.",
     ]
     return " ".join(part for part in parts if part and not part.endswith(": "))
 

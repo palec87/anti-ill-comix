@@ -143,6 +143,7 @@ def test_generate_story_pipeline_translates_before_images(monkeypatch):
     assert captured["target_language"] == "es"
     assert captured["dialogue_for_image"] == "ES:Linea"
     assert captured["exercise_for_image"] == "ES:Linea ____"
+    assert document["ui"]["content_language"] == "es"
 
 
 def test_generate_story_pipeline_translation_failure_keeps_content(monkeypatch):
@@ -170,6 +171,7 @@ def test_generate_story_pipeline_translation_failure_keeps_content(monkeypatch):
     )
 
     assert document["panels"][0]["dialogue"][0]["text"] == "Line"
+    assert document["ui"]["content_language"] == "en"
     assert any(
         item["step"] == "translation" and item["status"] == "fallback"
         for item in document["trace"]
@@ -206,3 +208,50 @@ def test_generate_story_pipeline_fallback_preserves_reading_level(monkeypatch):
     )
 
     assert document["simplified"]["level"] == "B2"
+
+
+def test_generate_story_pipeline_localized_deterministic_keeps_content_language(
+    monkeypatch,
+):
+    def _fake_text(**kwargs):
+        raise UnifiedGenerationError("text failed")
+
+    def _fake_deterministic(document):
+        document["language"] = "es"
+        document["simplified"] = {
+            "summary": "Resumen local",
+            "level": "A2",
+            "keywords": ["local"],
+        }
+        document["characters"] = []
+        document["panels"] = []
+        document["exercises"] = []
+
+    def _unexpected_translate(*args, **kwargs):
+        raise AssertionError("localized deterministic content should not translate")
+
+    monkeypatch.setattr(
+        "comic_gen.comics.generate_text_content_from_article",
+        _fake_text,
+    )
+    monkeypatch.setattr(
+        "comic_gen.comics.deterministic_pipeline",
+        _fake_deterministic,
+    )
+    monkeypatch.setattr(
+        "comic_gen.comics.translate_session_content",
+        _unexpected_translate,
+    )
+
+    document = _document()
+    document["language"] = "es"
+    comics.generate_story_pipeline(
+        document,
+        panel_count=3,
+        text_model_repo_id="test-model",
+        reading_level="B2",
+        image_options={"enable_live_images": False},
+    )
+
+    assert document["ui"]["content_language"] == "es"
+    assert document["simplified"]["summary"] == "Resumen local"

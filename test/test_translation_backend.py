@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from comic_gen.translation_backend import (
     NLLB_LANGUAGE_CODES,
     translate_session_content,
@@ -32,6 +34,20 @@ def test_translate_text_uses_nllb_codes(monkeypatch):
     assert captured["target_language"] == NLLB_LANGUAGE_CODES["es"]
 
 
+def test_translate_text_handles_non_ascii_source_without_logging_failure(
+    monkeypatch,
+):
+    def _fake_get_pipeline(model_id, source_language, target_language):
+        return lambda text: [{"translation_text": f"OK:{text}"}]
+
+    monkeypatch.setattr(
+        "comic_gen.translation_backend._get_translation_pipeline",
+        _fake_get_pipeline,
+    )
+
+    assert translate_text("Zażółć gęślą jaźń 世界", "de").startswith("OK:")
+
+
 def test_translate_text_preserves_blank_placeholder(monkeypatch):
     monkeypatch.setattr(
         "comic_gen.translation_backend._get_translation_pipeline",
@@ -43,6 +59,24 @@ def test_translate_text_preserves_blank_placeholder(monkeypatch):
     assert translate_text("Read ____ today", "es", preserve_blanks=True) == (
         "Leer ____ today"
     )
+
+
+def test_translate_text_raises_on_failed_translation(monkeypatch):
+    def _broken_pipeline(*args, **kwargs):
+        return lambda text: (_ for _ in ()).throw(RuntimeError("boom"))
+
+    monkeypatch.setattr(
+        "comic_gen.translation_backend._get_translation_pipeline",
+        _broken_pipeline,
+    )
+
+    with pytest.raises(RuntimeError, match="boom"):
+        translate_text("Hello", "es")
+
+
+def test_translate_text_raises_on_unsupported_language():
+    with pytest.raises(ValueError, match="Unsupported target language"):
+        translate_text("Hello", "it")
 
 
 def test_translate_session_content_translates_learner_fields(monkeypatch):
