@@ -236,6 +236,7 @@ def test_generate_text_prompt_honors_panel_count_and_article(monkeypatch):
     generated = generate_text_content_from_article(
         language="en",
         style_id="retro",
+        reading_level="B1",
         article={
             "title": "Garden news",
             "fulltext": "Adults read a local garden article together.",
@@ -247,8 +248,11 @@ def test_generate_text_prompt_honors_panel_count_and_article(monkeypatch):
     assert "- Generate exactly 4 panels." in captured["prompt"]
     assert "Target Language Code: en" in captured["prompt"]
     assert "Comic Style ID: retro" in captured["prompt"]
+    assert "Reading Level: B1" in captured["prompt"]
+    assert "Set simplified.level exactly to B1." in captured["prompt"]
     assert "article_title=Garden news" in captured["prompt"]
     assert "Adults read a local garden article" in captured["prompt"]
+    assert generated["simplified"]["level"] == "B1"
     assert len(generated["panels"]) == 4
     assert len(generated["exercises"]) == 4
 
@@ -378,6 +382,7 @@ def test_model_payload_with_empty_bubbles_and_answer_blanks_is_repaired(
     generated = generate_text_content_from_article(
         language="en",
         style_id="minimal",
+        reading_level="A1",
         article={"title": "AI art", "fulltext": "Article text"},
         panel_count=3,
         model_repo_id="test-model",
@@ -389,6 +394,7 @@ def test_model_payload_with_empty_bubbles_and_answer_blanks_is_repaired(
         "P3",
     ]
     assert all(panel["bubbles"] for panel in generated["panels"])
+    assert generated["simplified"]["level"] == "A1"
     assert generated["exercises"][0]["panel_id"] == "P1"
     assert generated["exercises"][0]["blanks"] == ["____"]
     assert generated["exercises"][0]["answer_key"] == ["two"]

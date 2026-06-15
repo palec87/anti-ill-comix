@@ -19,6 +19,7 @@ UNIFIED_SESSION_PROMPT = (
     "- Do NOT output any conversational text before or after the JSON structure.\n"
     "- Use strict double quotes (\") for all keys and string values.\n"
     "- Generate exactly {panel_count} panels.\n"
+    "- Set simplified.level exactly to {reading_level}.\n"
     "- Length of the 'panels' list must match the length of the 'exercises' list.\n"
     "- For each panel_id, there needs to be exactly one exercise in the 'exercises' list.\n"
     "- There can be 1-3 characters.\n\n"
@@ -26,6 +27,13 @@ UNIFIED_SESSION_PROMPT = (
     "### Context Parameters\n"
     "- Target Language Code: {language}\n"
     "- Comic Style ID: {style_id}\n\n"
+    "- Reading Level: {reading_level}\n\n"
+
+    "### Reading Level Guidance\n"
+    "- A1: very short sentences, everyday words, one idea per sentence.\n"
+    "- A2: short sentences, common vocabulary, simple connectors.\n"
+    "- B1: clear plain language with some detail and cause/effect.\n"
+    "- B2: adult plain language with fuller context, still concise.\n\n"
     
     "### Target JSON Schema Definition\n"
     "Your output must follow this JSON structure:\n"

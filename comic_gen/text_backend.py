@@ -178,6 +178,7 @@ def _generate_with_pipeline(
 def generate_text_content_from_article(
     language: str,
     style_id: str,
+    reading_level: str,
     article: dict[str, Any],
     panel_count: int,
     model_repo_id: str,
@@ -188,10 +189,12 @@ def generate_text_content_from_article(
         raise UnifiedGenerationError("article.fulltext is required")
 
     target_count = max(3, min(5, panel_count))
+    target_level = reading_level if reading_level in {"A1", "A2", "B1", "B2"} else "A2"
     prompt = (
         UNIFIED_SESSION_PROMPT
         .replace("{language}", language)
         .replace("{style_id}", style_id)
+        .replace("{reading_level}", target_level)
         .replace("{panel_count}", str(target_count))
         .replace(
             "{user_input_source_material}",
@@ -224,6 +227,7 @@ def generate_text_content_from_article(
         raise UnifiedGenerationError(
             "simplified normalization failed"
         ) from exc
+    simplified["level"] = target_level
     # logger.info("Normalized simplified: %s", simplified)
 
     try:

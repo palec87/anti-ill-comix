@@ -89,6 +89,7 @@ def generate_story_pipeline(
     document: dict[str, Any],
     panel_count: int,
     text_model_repo_id: str,
+    reading_level: str = "A2",
     image_options: dict[str, Any] | None = None,
 ) -> None:
     options = _normalized_image_options(image_options)
@@ -99,6 +100,7 @@ def generate_story_pipeline(
         generated = generate_text_content_from_article(
             language=str(document.get("language", "en")),
             style_id=str(document.get("style_id", "minimal")),
+            reading_level=reading_level,
             article=document.get("article", {}),
             panel_count=panel_count,
             model_repo_id=text_model_repo_id,
@@ -160,3 +162,4 @@ def generate_story_pipeline(
         deterministic_pipeline(
             document,
         )
+        document.setdefault("simplified", {})["level"] = reading_level

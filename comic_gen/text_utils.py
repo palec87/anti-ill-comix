@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 from datetime import datetime, timezone
 import xml.etree.ElementTree as ET
-from .errors import UnifiedGenerationError
+from .errors import UnifiedGenerationError, ModelPipelineError
 
 from pydantic import BaseModel, Field
 from typing import List
@@ -19,22 +19,27 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 
+
 # 1. Define your exact structure using Pydantic
 class Character(BaseModel):
     id: str
     name: str
     description: str
 
+
 class Bubble(BaseModel):
     bbox_px: List[int] = Field(..., description="[x, y, w, h] elements")
+
 
 class Dialogue(BaseModel):
     character_id: str
     text: str
 
+
 class Render(BaseModel):
     image_path: str
     overlay_applied: bool
+
 
 class Panel(BaseModel):
     panel_id: str
@@ -44,9 +49,11 @@ class Panel(BaseModel):
     bubbles: List[Bubble]
     render: Render
 
+
 class ExerciseRules(BaseModel):
     case_sensitive: bool
     allow_trim_spaces: bool
+
 
 class Exercise(BaseModel):
     exercise_id: str
@@ -56,10 +63,12 @@ class Exercise(BaseModel):
     answer_key: List[str]
     feedback_rules: ExerciseRules
 
+
 class SimplifiedData(BaseModel):
     summary: str
     level: str
     keywords: List[str]
+
 
 # The master schema matching your prompt
 class ComicResponse(BaseModel):
@@ -337,8 +346,8 @@ def _box_overlap_ratio(first: list[int], second: list[int]) -> float:
 
 def _normalize_bbox(
     raw: Any,
-    min_width: int = 82,
-    min_height: int = 24,
+    min_width: int = 90,
+    min_height: int = 30,
 ) -> tuple[list[int], bool]:
     """Normalize one bubble box and report whether it needed repair."""
     if not isinstance(raw, list) or len(raw) != 4:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app import (
+    READING_LEVEL_OPTIONS,
     _overlay_bubbles_html,
     _panel_choices,
     _panel_image_html,
@@ -47,6 +48,10 @@ def test_panel_choices_use_canonical_panel_ids():
         ("Panel 1", "P1"),
         ("Panel 2", "P2"),
     ]
+
+
+def test_reading_level_options_are_a1_to_b2():
+    assert READING_LEVEL_OPTIONS == ["A1", "A2", "B1", "B2"]
 
 
 def test_load_exercise_uses_canonical_panel_id():

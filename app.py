@@ -40,8 +40,9 @@ LANGUAGE_OPTIONS = {
     "Deutsch": "de",
 }
 
-_VERSION = 0.11
+_VERSION = 0.12
 STYLE_OPTIONS = ["minimal", "newspaper", "watercolor", "retro"]
+READING_LEVEL_OPTIONS = ["A1", "A2", "B1", "B2"]
 MAX_SEED = 2**31 - 1
 MAX_IMAGE_SIZE = 512
 SERVERLESS_IMAGE_MODEL_ID = "black-forest-labs/FLUX.1-schnell"
@@ -163,8 +164,8 @@ def _overlay_bubbles_html(
             "width:max-content;height:auto;"
             "box-sizing:border-box;z-index:5;pointer-events:none;"
             "display:flex;align-items:center;justify-content:center;"
-            "padding:2px 5px;border:1px solid rgba(17,24,39,0.92);"
-            "border-radius:8px;background:rgba(255,255,255,0.94);"
+            "padding:3px 6px;border:1px solid rgba(17,24,39,0.92);"
+            "border-radius:10px;background:rgba(255,255,255,0.94);"
             "box-shadow:0 2px 8px rgba(17,24,39,0.18);"
             "overflow:hidden;"
         )
@@ -273,6 +274,7 @@ def _panel_id_for_selection(
 def generate_strip(
     language_label: str,
     style_id: str,
+    reading_level: str,
     use_live_feed: bool,
     panel_count: int,
     use_serverless_api: bool,
@@ -291,6 +293,13 @@ def generate_strip(
         use_live_feed=use_live_feed,
         )
     document = session.build_base_session(language, style_id, payload)
+    if reading_level not in READING_LEVEL_OPTIONS:
+        reading_level = "A2"
+    document["simplified"]["level"] = reading_level
+    document.setdefault("ui", {}).setdefault(
+        "selector_state",
+        {},
+    )["reading_level"] = reading_level
     document.setdefault("ui", {})["debug_mode"] = debug_mode
 
     # Toggle optional HF serverless generation path used for text and image.
@@ -302,6 +311,7 @@ def generate_strip(
         comics.generate_story_pipeline(
             document,
             panel_count=panel_count,
+            reading_level=reading_level,
             text_model_repo_id=DEFAULT_TEXT_MODEL_ID,
             image_options={
                 "model_repo_id": image_model_id,
@@ -344,6 +354,7 @@ def generate_strip(
 def generate_strip_ui(
     language_label: str,
     style_id: str,
+    reading_level: str,
     use_live_feed: bool,
     panel_count: int,
     use_serverless_api: bool,
@@ -370,6 +381,7 @@ def generate_strip_ui(
     ) = generate_strip(
         language_label,
         style_id,
+        reading_level,
         use_live_feed,
         panel_count,
         use_serverless_api,
@@ -460,6 +472,11 @@ with gr.Blocks() as demo:
                 choices=STYLE_OPTIONS,
                 value="minimal",
                 label="Art style",
+            )
+            reading_level_input = gr.Dropdown(
+                choices=READING_LEVEL_OPTIONS,
+                value="A2",
+                label="Reading level",
             )
             panel_count = gr.Slider(
                 minimum=3,
@@ -560,6 +577,7 @@ with gr.Blocks() as demo:
         inputs=[
             language_input,
             style_input,
+            reading_level_input,
             live_feed_input,
             panel_count,
             use_serverless_api_input,
