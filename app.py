@@ -40,7 +40,7 @@ LANGUAGE_OPTIONS = {
     "Deutsch": "de",
 }
 
-_VERSION = 0.12
+_VERSION = 0.13
 STYLE_OPTIONS = ["minimal", "newspaper", "watercolor", "retro"]
 READING_LEVEL_OPTIONS = ["A1", "A2", "B1", "B2"]
 MAX_SEED = 2**31 - 1
@@ -113,7 +113,7 @@ def _panel_image_html(
         "<div class='panel-media' "
         "style='position:relative;display:block;width:100%;"
         "max-width:512px;aspect-ratio:1/1;overflow:hidden;"
-        "border-radius:8px;background:#f3f4f6;'>"
+        "border-radius:2px;background:#f8f3e8;'>"
         f"{image_tag}"
         f"{overlay_html}"
         "</div>"
