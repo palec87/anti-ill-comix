@@ -223,18 +223,7 @@ def _normalize_panels(raw: Any, panel_count: int) -> list[dict[str, Any]]:
                 "each panel needs at least 1 dialogue line"
             )
 
-        bubbles_raw = item.get("bubbles", [])
-        bubbles: list[dict[str, list[int]]] = []
-        if isinstance(bubbles_raw, list):
-            for bubble in bubbles_raw[: len(dialogue)]:
-                if not isinstance(bubble, dict):
-                    continue
-                bubbles.append(
-                    {"bbox_px": _normalize_bbox(bubble.get("bbox_px"))}
-                )
-        while len(bubbles) < len(dialogue):
-            y = 30 + (len(bubbles) * 110)
-            bubbles.append({"bbox_px": [30, y, 300, 90]})
+        bubbles = _repair_bubbles(item.get("bubbles", []), len(dialogue))
 
         render_raw = item.get("render", {})
         if not isinstance(render_raw, dict):
@@ -325,20 +314,88 @@ def _normalize_exercises(
     return normalized
 
 
-def _normalize_bbox(raw: Any) -> list[int]:
+def _default_bboxes(count: int) -> list[list[int]]:
+    """Return stable default bubble boxes for a 256px square panel."""
+    layouts = {
+        1: [[10, 10, 118, 30]],
+        2: [[10, 10, 108, 30], [138, 10, 108, 30]],
+        3: [[10, 10, 108, 28], [138, 10, 108, 28], [10, 206, 108, 28]],
+    }
+    return layouts.get(count, layouts[3])[:count]
+
+
+def _box_overlap_ratio(first: list[int], second: list[int]) -> float:
+    """Return overlap area compared to the smaller bubble area."""
+    ax, ay, aw, ah = first
+    bx, by, bw, bh = second
+    x_overlap = max(0, min(ax + aw, bx + bw) - max(ax, bx))
+    y_overlap = max(0, min(ay + ah, by + bh) - max(ay, by))
+    overlap = x_overlap * y_overlap
+    smaller_area = max(1, min(aw * ah, bw * bh))
+    return overlap / smaller_area
+
+
+def _normalize_bbox(
+    raw: Any,
+    min_width: int = 82,
+    min_height: int = 24,
+) -> tuple[list[int], bool]:
+    """Normalize one bubble box and report whether it needed repair."""
     if not isinstance(raw, list) or len(raw) != 4:
-        return [30, 30, 300, 90]
+        return [10, 10, 108, 30], True
     vals: list[int] = []
     for value in raw:
         try:
             vals.append(int(value))
         except (TypeError, ValueError):
             vals.append(0)
-    x = max(0, min(511, vals[0]))
-    y = max(0, min(511, vals[1]))
-    w = max(30, min(512 - x, vals[2]))
-    h = max(30, min(512 - y, vals[3]))
-    return [x, y, w, h]
+    repaired = vals != raw
+    x, y, w, h = vals
+    if x < 0 or y < 0 or x > 255 or y > 255 or w < min_width or h < min_height:
+        repaired = True
+    w = max(min_width, min(256, w))
+    h = max(min_height, min(256, h))
+    x = max(0, min(256 - w, x))
+    y = max(0, min(256 - h, y))
+    return [x, y, w, h], repaired
+
+
+def _repair_bubbles(
+    raw: Any,
+    dialogue_count: int,
+) -> list[dict[str, list[int]]]:
+    """Repair model bubble boxes so every dialogue line has readable space."""
+    target = max(0, min(3, dialogue_count))
+    if target == 0:
+        return []
+    defaults = _default_bboxes(target)
+    if not isinstance(raw, list) or len(raw) < target:
+        return [{"bbox_px": box} for box in defaults]
+
+    boxes: list[list[int]] = []
+    repaired = False
+    for bubble in raw[:target]:
+        if not isinstance(bubble, dict):
+            repaired = True
+            break
+        box, box_repaired = _normalize_bbox(bubble.get("bbox_px"))
+        boxes.append(box)
+        repaired = repaired or box_repaired
+
+    if len(boxes) != target:
+        return [{"bbox_px": box} for box in defaults]
+
+    for index, box in enumerate(boxes):
+        for other in boxes[index + 1:]:
+            if _box_overlap_ratio(box, other) > 0.2:
+                repaired = True
+                break
+        if repaired:
+            break
+
+    if repaired:
+        boxes = defaults
+    return [{"bbox_px": box} for box in boxes]
 
 
 def _normalize_model_fields(

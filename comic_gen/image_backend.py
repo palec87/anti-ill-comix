@@ -23,8 +23,9 @@ _INFERENCE_CLIENT: Any | None = None
 _PIPELINE: Any | None = None
 _PIPELINE_MODEL_ID = ""
 IMAGE_TEXT_NEGATIVE_PROMPT = (
-    "speech bubble, speech bubbles, thought bubble, comic text, captions, "
-    "caption, subtitle, subtitles, labels, label, sign, signs, UI text, "
+    "speech bubble, speech bubbles, thought bubble, thought bubbles, "
+    "dialogue balloon, dialogue balloons, caption, captions, comic text, "
+    "subtitle, subtitles, labels, label, sign, signs, UI text, "
     "readable text, readable letters, words, letters, typography, font, "
     "watermark, logo"
 )
@@ -39,14 +40,14 @@ def _compact_text(value: Any, max_chars: int = 320) -> str:
 
 def build_image_prompt(document: dict[str, Any], panel: dict[str, Any]) -> str:
     """Build a replayable image prompt from session and panel text."""
-    scene = _compact_text(panel.get("scene_description", ""), 90)
+    scene = _compact_text(panel.get("scene_description", ""), 70)
     style_id = _compact_text(document.get("style_id", "minimal"), 32)
     parts = [
-        "No speech bubbles. No thought bubbles. No text. No letters.",
-        "No captions, labels, subtitles, or speech.",
-        # f"Simple low-detail {style_id} comic panel.",
+        # "Plain comic scene only.",
+        "Characters and background only.",
         f"Scene: {scene}.",
-        f"Keep strict {style_id} style, blank background space.",
+        f"Keep strict {style_id} style.",
+        # "Empty margins for later overlay.",
     ]
     return " ".join(part for part in parts if part and not part.endswith(": "))
 

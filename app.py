@@ -40,7 +40,7 @@ LANGUAGE_OPTIONS = {
     "Deutsch": "de",
 }
 
-_VERSION = 0.10
+_VERSION = 0.11
 STYLE_OPTIONS = ["minimal", "newspaper", "watercolor", "retro"]
 MAX_SEED = 2**31 - 1
 MAX_IMAGE_SIZE = 512
@@ -104,10 +104,15 @@ def _panel_image_html(
     image_tag = (
         "<img src='"
         f"{image_src}' alt='Panel {panel['frame_index']}' "
-        "class='panel-image'/>"
+        "class='panel-image' "
+        "style='display:block;width:100%;height:auto;"
+        "aspect-ratio:1/1;object-fit:cover;'/>"
     )
     return (
-        "<div class='panel-media'>"
+        "<div class='panel-media' "
+        "style='position:relative;display:block;width:100%;"
+        "max-width:512px;aspect-ratio:1/1;overflow:hidden;"
+        "border-radius:8px;background:#f3f4f6;'>"
         f"{image_tag}"
         f"{overlay_html}"
         "</div>"
@@ -118,17 +123,28 @@ def _overlay_bubbles_html(
     panel: dict[str, Any],
     standalone: bool = False,
 ) -> str:
-    width = 512
-    height = 512
+    width = 256
+    height = 256
     container_class = "overlay-debug" if standalone else "overlay-layer"
     canvas_class = (
         "overlay-canvas overlay-canvas-debug"
         if standalone
         else "overlay-canvas"
     )
+    container_style = (
+        "position:relative;width:100%;max-width:512px;aspect-ratio:1/1;"
+        "pointer-events:none;"
+        if standalone
+        else "position:absolute;inset:0;z-index:4;width:100%;height:100%;"
+        "pointer-events:none;"
+    )
+    canvas_style = (
+        "position:absolute;inset:0;width:100%;height:100%;"
+        "pointer-events:none;"
+    )
     parts = [
-        f"<div class='{container_class}'>",
-        f"<div class='{canvas_class}'>",
+        f"<div class='{container_class}' style='{container_style}'>",
+        f"<div class='{canvas_class}' style='{canvas_style}'>",
     ]
     dialogue = panel.get("dialogue", [])
     for index, bubble in enumerate(panel.get("bubbles", [])):
@@ -140,11 +156,29 @@ def _overlay_bubbles_html(
         top = max(0.0, min(100.0, (y / height) * 100))
         bubble_w = max(8.0, min(100.0 - left, (box_w / width) * 100))
         bubble_h = max(8.0, min(100.0 - top, (box_h / height) * 100))
+        bubble_style = (
+            "position:absolute;"
+            f"left:{left:.2f}%;top:{top:.2f}%;"
+            f"max-width:{bubble_w:.2f}%;max-height:{bubble_h:.2f}%;"
+            "width:max-content;height:auto;"
+            "box-sizing:border-box;z-index:5;pointer-events:none;"
+            "display:flex;align-items:center;justify-content:center;"
+            "padding:2px 5px;border:1px solid rgba(17,24,39,0.92);"
+            "border-radius:8px;background:rgba(255,255,255,0.94);"
+            "box-shadow:0 2px 8px rgba(17,24,39,0.18);"
+            "overflow:hidden;"
+        )
+        line_style = (
+            "display:block;width:100%;color:#111827;text-align:center;"
+            "font-family:Arial,Helvetica,sans-serif;font-weight:700;"
+            "font-size:clamp(7px,1.8vw,11px);line-height:1.08;"
+            "overflow-wrap:anywhere;word-break:normal;hyphens:auto;"
+            "white-space:normal;"
+        )
         parts.append(
             "<div class='overlay-bubble' "
-            f"style='left:{left:.2f}%;top:{top:.2f}%;"
-            f"width:{bubble_w:.2f}%;height:{bubble_h:.2f}%;'>"
-            f"<div class='overlay-line'>{text}</div>"
+            f"style='{bubble_style}'>"
+            f"<div class='overlay-line' style='{line_style}'>{text}</div>"
             "</div>"
         )
     parts.append("</div>")
@@ -518,7 +552,8 @@ with gr.Blocks() as demo:
         submit_button = gr.Button("Submit Answer")
         feedback_md = gr.Markdown()
 
-        trace_json = gr.JSON(label="Trace")
+        with gr.Accordion("Trace / Debug", open=False):
+            trace_json = gr.JSON(label="Trace")
 
     generate_button.click(
         fn=generate_strip_ui,

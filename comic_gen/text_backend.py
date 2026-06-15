@@ -10,6 +10,7 @@ from .text_utils import (
     _normalize_characters,
     _normalize_panels,
     _normalize_exercises,
+    _repair_bubbles,
     extract_json_object,
     ComicResponse,
 )
@@ -46,10 +47,11 @@ def _detect_normalization_repairs(payload: dict[str, Any]) -> list[str]:
                 isinstance(dialogue, list)
                 and dialogue
                 and isinstance(bubbles, list)
-                and len(bubbles) < len(dialogue)
             ):
-                repairs.append("panel bubbles")
-                break
+                repaired = _repair_bubbles(bubbles, len(dialogue))
+                if bubbles != repaired:
+                    repairs.append("panel bubbles")
+                    break
 
     exercises = payload.get("exercises", [])
     if isinstance(exercises, list):

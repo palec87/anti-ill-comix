@@ -88,12 +88,17 @@ def test_build_image_prompt_includes_session_and_panel_text():
 
     assert "watercolor" in prompt
     assert "Two adults read together" in prompt
-    assert prompt.startswith("No speech bubbles. No thought bubbles.")
-    assert "No text. No letters." in prompt
-    assert "No captions, labels, signs" in prompt
+    assert prompt.startswith("Plain comic scene only.")
+    assert "Characters and background only." in prompt
+    assert "speech" not in prompt.lower()
+    assert "bubble" not in prompt.lower()
+    assert "text" not in prompt.lower()
     assert "We read one short instruction" not in prompt
     assert "Adults read a short article" not in prompt
-    assert len(prompt.split()) <= 60
+    assert len(prompt.split()) <= 35
+    assert "speech bubble" in IMAGE_TEXT_NEGATIVE_PROMPT
+    assert "dialogue balloon" in IMAGE_TEXT_NEGATIVE_PROMPT
+    assert "words" in IMAGE_TEXT_NEGATIVE_PROMPT
 
 
 def test_generate_panel_image_uses_serverless_without_local_fallback(
@@ -294,7 +299,7 @@ def test_generate_image_panels_passes_stored_image_prompt(monkeypatch):
     assert counts == {"serverless": 1}
     assert panels[0]["render"]["image_source"] == "serverless"
     assert panels[0]["render"]["image_prompt"] == captured_prompt
-    assert captured_prompt.startswith("No speech bubbles")
+    assert captured_prompt.startswith("Plain comic scene only.")
     assert "Two adults read together" in captured_prompt
     assert IMAGE_TEXT_NEGATIVE_PROMPT in captured_negative_prompt
     assert panels[0]["render"]["overlay_applied"] is True
@@ -316,7 +321,9 @@ def test_generate_image_panels_records_prompt_for_deterministic_path(
 
     assert counts == {"deterministic": 1}
     assert panels[0]["render"]["image_source"] == "deterministic"
-    assert panels[0]["render"]["image_prompt"].startswith("No speech bubbles")
+    assert panels[0]["render"]["image_prompt"].startswith(
+        "Plain comic scene only."
+    )
     assert panels[0]["render"]["overlay_applied"] is True
 
 

@@ -8,6 +8,7 @@ from comic_gen.text_backend import (
     _normalize_exercises,
     generate_text_content_from_article,
 )
+from comic_gen.text_utils import _normalize_panels
 
 
 PAYLOAD = {
@@ -395,3 +396,121 @@ def test_model_payload_with_empty_bubbles_and_answer_blanks_is_repaired(
         "panel bubbles",
         "exercise blanks",
     }
+
+
+def test_normalize_panels_creates_compact_upper_corner_bubbles():
+    panels = _normalize_panels(
+        [
+            {
+                "panel_id": "P1",
+                "frame_index": 1,
+                "scene_description": "Two adults read a note.",
+                "dialogue": [
+                    {"character_id": "A1", "text": "Read this first."},
+                    {"character_id": "A2", "text": "I understand now."},
+                ],
+                "bubbles": [],
+            },
+            {
+                "panel_id": "P2",
+                "frame_index": 2,
+                "scene_description": "A worker points to a form.",
+                "dialogue": [{"character_id": "A1", "text": "Write here."}],
+                "bubbles": [],
+            },
+            {
+                "panel_id": "P3",
+                "frame_index": 3,
+                "scene_description": "People smile together.",
+                "dialogue": [{"character_id": "A1", "text": "Good work."}],
+                "bubbles": [],
+            },
+        ],
+        3,
+    )
+
+    assert panels[0]["bubbles"] == [
+        {"bbox_px": [10, 10, 108, 30]},
+        {"bbox_px": [138, 10, 108, 30]},
+    ]
+    assert panels[1]["bubbles"] == [{"bbox_px": [10, 10, 118, 30]}]
+    for bubble in panels[0]["bubbles"]:
+        x, y, width, height = bubble["bbox_px"]
+        assert x >= 0
+        assert y >= 0
+        assert x + width <= 256
+        assert y + height <= 256
+
+
+def test_normalize_panels_repairs_bad_and_overlapping_boxes():
+    panels = _normalize_panels(
+        [
+            {
+                "panel_id": "P1",
+                "frame_index": 1,
+                "scene_description": "A reader asks a question.",
+                "dialogue": [
+                    {"character_id": "A1", "text": "Where is the address?"},
+                    {"character_id": "A2", "text": "It is at the top."},
+                    {"character_id": "A1", "text": "Thank you."},
+                ],
+                "bubbles": [
+                    {"bbox_px": [250, -20, 10, 10]},
+                    {"bbox_px": [252, -10, 8, 8]},
+                    {"bbox_px": [254, -5, 6, 6]},
+                ],
+            },
+            {
+                "panel_id": "P2",
+                "frame_index": 2,
+                "scene_description": "People review a paper.",
+                "dialogue": [{"character_id": "A1", "text": "Check line one."}],
+                "bubbles": [],
+            },
+            {
+                "panel_id": "P3",
+                "frame_index": 3,
+                "scene_description": "A person writes slowly.",
+                "dialogue": [{"character_id": "A1", "text": "I can do it."}],
+                "bubbles": [],
+            },
+        ],
+        3,
+    )
+
+    assert panels[0]["bubbles"] == [
+        {"bbox_px": [10, 10, 108, 28]},
+        {"bbox_px": [138, 10, 108, 28]},
+        {"bbox_px": [10, 206, 108, 28]},
+    ]
+
+
+def test_normalize_panels_preserves_small_valid_model_box():
+    panels = _normalize_panels(
+        [
+            {
+                "panel_id": "P1",
+                "frame_index": 1,
+                "scene_description": "A reader studies a short note.",
+                "dialogue": [{"character_id": "A1", "text": "Short note."}],
+                "bubbles": [{"bbox_px": [24, 18, 88, 26]}],
+            },
+            {
+                "panel_id": "P2",
+                "frame_index": 2,
+                "scene_description": "A learner checks a form.",
+                "dialogue": [{"character_id": "A1", "text": "Looks clear."}],
+                "bubbles": [],
+            },
+            {
+                "panel_id": "P3",
+                "frame_index": 3,
+                "scene_description": "The group completes the task.",
+                "dialogue": [{"character_id": "A1", "text": "Done."}],
+                "bubbles": [],
+            },
+        ],
+        3,
+    )
+
+    assert panels[0]["bubbles"] == [{"bbox_px": [24, 18, 88, 26]}]

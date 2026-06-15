@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from app import _panel_choices, load_exercise
+from app import (
+    _overlay_bubbles_html,
+    _panel_choices,
+    _panel_image_html,
+    load_exercise,
+)
 
 
 def _document() -> dict:
@@ -56,3 +61,47 @@ def test_load_exercise_supports_legacy_frame_panel_id():
 
     assert "Rob Wrubel says" in prompt
     assert answer == ""
+
+
+def test_overlay_bubbles_html_uses_inline_styles_and_escapes_text():
+    panel = {
+        "panel_id": "P1",
+        "frame_index": 1,
+        "dialogue": [
+            {
+                "character_id": "A1",
+                "text": "Use <simple> words & clear steps.",
+            }
+        ],
+        "bubbles": [{"bbox_px": [10, 10, 108, 30]}],
+        "render": {"overlay_applied": True, "image_path": "missing.png"},
+    }
+
+    html = _overlay_bubbles_html(panel)
+
+    assert "position:absolute;inset:0;z-index:4" in html
+    assert "pointer-events:none" in html
+    assert "left:3.91%;top:3.91%" in html
+    assert "max-width:42.19%;max-height:11.72%" in html
+    assert "width:max-content;height:auto" in html
+    assert "padding:2px 5px" in html
+    assert "font-size:clamp(7px,1.8vw,11px)" in html
+    assert "min-height" not in html
+    assert "Use &lt;simple&gt; words &amp; clear steps." in html
+
+
+def test_panel_image_html_contains_overlay_inside_media_container():
+    overlay = "<div class='overlay-layer'>Overlay</div>"
+    panel = {
+        "panel_id": "P1",
+        "frame_index": 1,
+        "dialogue": [],
+        "bubbles": [],
+        "render": {"overlay_applied": True, "image_path": "missing.png"},
+    }
+
+    html = _panel_image_html(panel, overlay)
+
+    assert "class='panel-media'" in html
+    assert "style='position:relative" in html
+    assert html.index("<img") < html.index(overlay) < html.index("</div>")
