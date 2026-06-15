@@ -52,14 +52,34 @@ def _get_translation_pipeline(
         return _PIPELINES[cache_key]
 
     _ensure_utf8_stdio()
-    from transformers import pipeline
+    from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
-    translator = pipeline(
-        "translation",
-        model=model_id,
+    tokenizer = AutoTokenizer.from_pretrained(
+        model_id,
         src_lang=source_language,
-        tgt_lang=target_language,
     )
+    model = AutoModelForSeq2SeqLM.from_pretrained(model_id)
+    forced_bos_token_id = tokenizer.convert_tokens_to_ids(target_language)
+
+    def translator(text: str) -> list[dict[str, str]]:
+        tokenizer.src_lang = source_language
+        encoded = tokenizer(
+            text,
+            return_tensors="pt",
+            truncation=True,
+            max_length=512,
+        )
+        generated = model.generate(
+            **encoded,
+            forced_bos_token_id=forced_bos_token_id,
+            max_new_tokens=256,
+        )
+        translated = tokenizer.batch_decode(
+            generated,
+            skip_special_tokens=True,
+        )[0]
+        return [{"translation_text": translated}]
+
     _PIPELINES[cache_key] = translator
     return translator
 
