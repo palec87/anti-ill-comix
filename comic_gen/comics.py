@@ -25,7 +25,7 @@ def _default_image_options() -> dict[str, Any]:
     return {
         "enable_live_images": False,
         "use_serverless_image_api": False,
-        "model_repo_id": "stabilityai/sdxl-turbo",
+        "model_repo_id": "black-forest-labs/FLUX.1-schnell",
         "negative_prompt": "",
         "seed": 0,
         "randomize_seed": True,
@@ -52,8 +52,8 @@ def _normalize_model_repo_id(value: Any) -> str:
             value = value[0]
         else:
             value = value[0] if value else ""
-    model_repo_id = str(value or "stabilityai/sdxl-turbo").strip()
-    return model_repo_id or "stabilityai/sdxl-turbo"
+    model_repo_id = str(value or "black-forest-labs/FLUX.1-schnell").strip()
+    return model_repo_id or "black-forest-labs/FLUX.1-schnell"
 
 
 def _normalized_image_options(
@@ -79,7 +79,7 @@ def _normalized_image_options(
     )
     options["randomize_seed"] = bool(options.get("randomize_seed", True))
     options["model_repo_id"] = _normalize_model_repo_id(
-        options.get("model_repo_id", "stabilityai/sdxl-turbo")
+        options.get("model_repo_id", "black-forest-labs/FLUX.1-schnell")
     )
     options["negative_prompt"] = str(options.get("negative_prompt", ""))
     return options
@@ -88,15 +88,9 @@ def _normalized_image_options(
 def generate_story_pipeline(
     document: dict[str, Any],
     panel_count: int,
-    enable_model_generation: bool,
     text_model_repo_id: str,
     image_options: dict[str, Any] | None = None,
 ) -> None:
-    if not enable_model_generation:
-        logger.info("Running deterministic pipeline")
-        deterministic_pipeline(document)
-        return
-
     options = _normalized_image_options(image_options)
     options["enable_live_images"] = True
     logger.info("Running unified model pipeline (text + image)")

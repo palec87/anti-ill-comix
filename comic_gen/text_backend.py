@@ -14,7 +14,6 @@ from .text_utils import (
     ComicResponse,
 )
 from .errors import (
-    ModelPipelineError,
     TextGenerationError,
     UnifiedGenerationError,
 )

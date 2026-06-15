@@ -99,7 +99,6 @@ def fallback_image_src(panel: dict[str, Any]) -> str:
 def fetch_article(
     language: str,
     use_live_feed: bool = False,
-    model_generation: bool = False,
 ) -> dict[str, str]:
     normalized = language.lower()
     if use_live_feed:
@@ -121,33 +120,32 @@ def fetch_article(
     else:
         payload = load_json_article(language)
 
-        if model_generation:
-            try:
-                parsed = {
-                    "publisher": payload.get("source").get(
-                        "publisher"
-                    ),
-                    "source_link": payload.get("source").get("link"),
-                    "published_at": payload.get("source").get(
-                        "published_at"
-                    ),
-                    "title": payload.get("article").get("title"),
-                    "fulltext": payload.get("article").get("fulltext"),
-                }
-                if parsed and parsed.get("source_link") and parsed.get(
-                    "fulltext"
-                ):
-                    return parsed
-            except (OSError, json.JSONDecodeError):
-                logger.warning(
-                    f"Error reading example file for '{language}',"
-                    f" falling back to deterministic article."
-                )
-            except Exception as e:
-                logger.warning(
-                    f"Unexpected error loading example file for '{language}':"
-                    f" {e}. Falling back to deterministic article."
-                )
+        try:
+            parsed = {
+                "publisher": payload.get("source").get(
+                    "publisher"
+                ),
+                "source_link": payload.get("source").get("link"),
+                "published_at": payload.get("source").get(
+                    "published_at"
+                ),
+                "title": payload.get("article").get("title"),
+                "fulltext": payload.get("article").get("fulltext"),
+            }
+            if parsed and parsed.get("source_link") and parsed.get(
+                "fulltext"
+            ):
+                return parsed
+        except (OSError, json.JSONDecodeError):
+            logger.warning(
+                f"Error reading example file for '{language}',"
+                f" falling back to deterministic article."
+            )
+        except Exception as e:
+            logger.warning(
+                f"Unexpected error loading example file for '{language}':"
+                f" {e}. Falling back to deterministic article."
+            )
         return payload
 
     return load_json_article(language)

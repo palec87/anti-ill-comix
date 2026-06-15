@@ -135,7 +135,6 @@ def _overlay_bubbles_html(
         bbox = bubble.get("bbox_px", [0, 0, 120, 60])
         x, y, box_w, box_h = bbox
         line = dialogue[index] if index < len(dialogue) else {}
-        # char_id = html.escape(line.get("character_id", "narrator"))
         text = html.escape(line.get("text", ""))
         left = max(0.0, min(100.0, (x / width) * 100))
         top = max(0.0, min(100.0, (y / height) * 100))
@@ -145,7 +144,6 @@ def _overlay_bubbles_html(
             "<div class='overlay-bubble' "
             f"style='left:{left:.2f}%;top:{top:.2f}%;"
             f"width:{bubble_w:.2f}%;height:{bubble_h:.2f}%;'>"
-            # f"<div class='overlay-speaker'>{char_id}</div>"
             f"<div class='overlay-line'>{text}</div>"
             "</div>"
         )
@@ -243,7 +241,6 @@ def generate_strip(
     style_id: str,
     use_live_feed: bool,
     panel_count: int,
-    enable_model_generation: bool,
     use_serverless_api: bool,
     negative_prompt: str,
     seed: int,
@@ -258,7 +255,6 @@ def generate_strip(
     payload = backends.fetch_article(
         language,
         use_live_feed=use_live_feed,
-        model_generation=enable_model_generation,
         )
     document = session.build_base_session(language, style_id, payload)
     document.setdefault("ui", {})["debug_mode"] = debug_mode
@@ -272,7 +268,6 @@ def generate_strip(
         comics.generate_story_pipeline(
             document,
             panel_count=panel_count,
-            enable_model_generation=enable_model_generation,
             text_model_repo_id=DEFAULT_TEXT_MODEL_ID,
             image_options={
                 "model_repo_id": image_model_id,
@@ -317,7 +312,6 @@ def generate_strip_ui(
     style_id: str,
     use_live_feed: bool,
     panel_count: int,
-    enable_model_generation: bool,
     use_serverless_api: bool,
     negative_prompt: str,
     seed: int,
@@ -344,7 +338,6 @@ def generate_strip_ui(
         style_id,
         use_live_feed,
         panel_count,
-        enable_model_generation,
         use_serverless_api,
         negative_prompt,
         seed,
@@ -446,11 +439,7 @@ with gr.Blocks() as demo:
                 value=False,
             )
 
-        with gr.Accordion("Model Generation (Optional)", open=False):
-            enable_model_generation_input = gr.Checkbox(
-                label="Enable model generation (text + images)",
-                value=False,
-            )
+        with gr.Accordion("Advanced Options", open=False):
             use_serverless_api_input = gr.Checkbox(
                 label="Use HF serverless API for text + image generation",
                 value=False,
@@ -538,7 +527,6 @@ with gr.Blocks() as demo:
             style_input,
             live_feed_input,
             panel_count,
-            enable_model_generation_input,
             use_serverless_api_input,
             negative_prompt_input,
             seed_input,

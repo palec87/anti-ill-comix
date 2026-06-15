@@ -101,8 +101,8 @@ def _normalize_model_repo_id(value: Any) -> str:
     """Return a model repo id string that Diffusers can validate."""
     if isinstance(value, (list, tuple)):
         value = value[0] if value else ""
-    model_repo_id = str(value or "stabilityai/sdxl-turbo").strip()
-    return model_repo_id or "stabilityai/sdxl-turbo"
+    model_repo_id = str(value or "black-forest-labs/FLUX.1-schnell").strip()
+    return model_repo_id or "black-forest-labs/FLUX.1-schnell"
 
 
 def _is_serverless_image_enabled(options: dict[str, Any]) -> bool:
@@ -265,6 +265,7 @@ def _generate_panel_image(
         height=height,
         guidance_scale=guidance_scale,
         num_inference_steps=num_inference_steps,
+        max_sequence_length=256,
     ).images[0]
 
     out_path = _build_output_path(session_id, panel_id)

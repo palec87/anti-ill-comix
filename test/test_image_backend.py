@@ -62,7 +62,7 @@ def _options(enable_live_images: bool = True) -> dict:
     return {
         "enable_live_images": enable_live_images,
         "use_serverless_image_api": True,
-        "model_repo_id": "stabilityai/sdxl-turbo",
+        "model_repo_id": "black-forest-labs/FLUX.1-schnell",
         "negative_prompt": "",
         "seed": 11,
         "randomize_seed": False,
@@ -117,7 +117,7 @@ def test_generate_panel_image_uses_serverless_without_local_fallback(
         negative_prompt="",
         session_id="session-1",
         panel_id="panel_1",
-        model_repo_id=("stabilityai/sdxl-turbo",),
+        model_repo_id=("black-forest-labs/FLUX.1-schnell",),
         seed=5,
         randomize_seed=False,
         width=256,
@@ -130,7 +130,7 @@ def test_generate_panel_image_uses_serverless_without_local_fallback(
     assert out_path.endswith("panel_1.png")
     assert used_seed == 5
     assert image_source == "serverless"
-    assert captured["model_repo_id"] == "stabilityai/sdxl-turbo"
+    assert captured["model_repo_id"] == "black-forest-labs/FLUX.1-schnell"
 
 
 def test_generate_image_panels_passes_stored_image_prompt(monkeypatch):
