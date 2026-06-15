@@ -4,6 +4,7 @@ import pytest
 
 from comic_gen.translation_backend import (
     NLLB_LANGUAGE_CODES,
+    _ensure_utf8_stdio,
     _get_translation_pipeline,
     translate_session_content,
     translate_text,
@@ -47,6 +48,52 @@ def test_translate_text_handles_non_ascii_source_without_logging_failure(
     )
 
     assert translate_text("Zażółć gęślą jaźń 世界", "de").startswith("OK:")
+
+
+def test_translate_text_suppresses_non_ascii_translator_stdout(monkeypatch):
+    class FailingStdout:
+        def write(self, value):
+            value.encode("cp1252")
+
+        def flush(self):
+            return None
+
+    def _fake_get_pipeline(model_id, source_language, target_language):
+        def _translator(text):
+            print("model says 世界")
+            return [{"translation_text": "OK"}]
+
+        return _translator
+
+    monkeypatch.setattr(
+        "comic_gen.translation_backend._get_translation_pipeline",
+        _fake_get_pipeline,
+    )
+    monkeypatch.setattr("sys.stdout", FailingStdout())
+
+    assert translate_text("Hello", "es") == "OK"
+
+
+def test_ensure_utf8_stdio_reconfigures_logging_handler_stream():
+    class ReconfigurableStream:
+        def __init__(self):
+            self.calls = []
+
+        def reconfigure(self, **kwargs):
+            self.calls.append(kwargs)
+
+    import logging
+
+    stream = ReconfigurableStream()
+    handler = logging.StreamHandler(stream)
+    root = logging.getLogger()
+    root.addHandler(handler)
+    try:
+        _ensure_utf8_stdio()
+    finally:
+        root.removeHandler(handler)
+
+    assert {"encoding": "utf-8", "errors": "backslashreplace"} in stream.calls
 
 
 def test_get_translation_pipeline_uses_seq2seq_model(monkeypatch):

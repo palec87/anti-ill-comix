@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import contextlib
+import io
 import logging
+import os
 import sys
 from typing import Any
 
@@ -20,16 +23,33 @@ PLACEHOLDER_TOKEN = "__BLANK_PLACEHOLDER__"
 _PIPELINES: dict[tuple[str, str, str], Any] = {}
 
 
+def _reconfigure_stream(stream: Any) -> None:
+    """Best-effort stream reconfiguration for Windows code pages."""
+    reconfigure = getattr(stream, "reconfigure", None)
+    if not callable(reconfigure):
+        return
+    try:
+        reconfigure(encoding="utf-8", errors="backslashreplace")
+    except (OSError, ValueError):
+        return
+
+
 def _ensure_utf8_stdio() -> None:
     """Keep model logging from failing on non-ASCII translation text."""
+    os.environ.setdefault("PYTHONIOENCODING", "utf-8")
     for stream in (sys.stdout, sys.stderr):
-        reconfigure = getattr(stream, "reconfigure", None)
-        if not callable(reconfigure):
-            continue
-        try:
-            reconfigure(encoding="utf-8", errors="backslashreplace")
-        except (OSError, ValueError):
-            continue
+        _reconfigure_stream(stream)
+    for handler in logging.getLogger().handlers + logger.handlers:
+        _reconfigure_stream(getattr(handler, "stream", None))
+
+
+@contextlib.contextmanager
+def _quiet_model_output():
+    """Suppress model chatter that can fail on non-UTF-8 consoles."""
+    _ensure_utf8_stdio()
+    with contextlib.redirect_stdout(io.StringIO()):
+        with contextlib.redirect_stderr(io.StringIO()):
+            yield
 
 
 def _get_translation_pipeline(
@@ -54,11 +74,12 @@ def _get_translation_pipeline(
     _ensure_utf8_stdio()
     from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
-    tokenizer = AutoTokenizer.from_pretrained(
-        model_id,
-        src_lang=source_language,
-    )
-    model = AutoModelForSeq2SeqLM.from_pretrained(model_id)
+    with _quiet_model_output():
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_id,
+            src_lang=source_language,
+        )
+        model = AutoModelForSeq2SeqLM.from_pretrained(model_id)
     forced_bos_token_id = tokenizer.convert_tokens_to_ids(target_language)
 
     def translator(text: str) -> list[dict[str, str]]:
@@ -93,6 +114,12 @@ def _translation_result_text(result: Any) -> str:
     if isinstance(result, dict):
         return str(result.get("translation_text", "")).strip()
     return str(result or "").strip()
+
+
+def _run_translator(translator: Any, text: str) -> Any:
+    """Call a translator while suppressing unsafe console output."""
+    with _quiet_model_output():
+        return translator(text)
 
 
 def translate_text(
@@ -137,7 +164,7 @@ def translate_text(
 
     translator = _get_translation_pipeline(model_id, source_code, target_code)
     _ensure_utf8_stdio()
-    translated = _translation_result_text(translator(protected))
+    translated = _translation_result_text(_run_translator(translator, protected))
     translated = translated or value
     if preserve_blanks:
         translated = translated.replace(PLACEHOLDER_TOKEN, "____")
