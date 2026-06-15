@@ -36,57 +36,69 @@ def _compact_text(value: Any, max_chars: int = 320) -> str:
 
 def build_image_prompt(document: dict[str, Any], panel: dict[str, Any]) -> str:
     """Build a replayable image prompt from session and panel text."""
-    simplified = document.get("simplified", {})
-    keywords = simplified.get("keywords", [])
-    if isinstance(keywords, list):
-        keyword_text = ", ".join(str(item) for item in keywords[:6])
-    else:
-        keyword_text = ""
-
-    character_names = {
-        str(item.get("id", "")): str(item.get("name", ""))
-        for item in document.get("characters", [])
-        if isinstance(item, dict)
-    }
-    character_bits = []
-    for item in document.get("characters", []):
-        if not isinstance(item, dict):
-            continue
-        name = _compact_text(item.get("name", "Character"), 48)
-        description = _compact_text(item.get("description", ""), 140)
-        if description:
-            character_bits.append(f"{name}: {description}")
-        else:
-            character_bits.append(name)
-
-    dialogue_bits = []
-    for line in panel.get("dialogue", []):
-        if not isinstance(line, dict):
-            continue
-        character_id = str(line.get("character_id", "speaker"))
-        speaker = character_names.get(character_id, character_id)
-        text = _compact_text(line.get("text", ""), 120)
-        if text:
-            dialogue_bits.append(f"{speaker} says: {text}")
-
+    scene = _compact_text(panel.get("scene_description", ""), 90)
+    style_id = _compact_text(document.get("style_id", "minimal"), 32)
     parts = [
-        f"Adult literacy educational comic panel, style: {document.get('style_id', 'minimal')}.",
-        f"Language context: {document.get('language', 'en')}.",
-        f"Article summary: {_compact_text(simplified.get('summary', ''), 260)}",
-        f"Key ideas: {_compact_text(keyword_text, 160)}",
-        f"Scene: {_compact_text(panel.get('scene_description', ''), 240)}",
-        f"Characters: {_compact_text('; '.join(character_bits), 320)}",
-        f"Dialogue context: {_compact_text('; '.join(dialogue_bits), 320)}",
-        (
-            "Create a simple low-detail comic illustration with clear character "
-            "actions and uncluttered blank areas where the app can overlay "
-            "separate HTML speech bubbles later. Do not draw speech bubbles, "
-            "thought bubbles, captions, signs, labels, UI text, subtitles, or "
-            "any text inside the image. Do not draw readable letters, "
-            "readable words, typography, or fonts."
-        ),
+        "No speech bubbles. No thought bubbles. No text. No letters.",
+        "No captions, labels, signs, subtitles, logos, or speech.",
+        f"Simple low-detail {style_id} comic panel.",
+        f"Scene: {scene}.",
+        "Clear adult characters, expressive action, blank background space.",
     ]
     return " ".join(part for part in parts if part and not part.endswith(": "))
+# def build_image_prompt(document: dict[str, Any], panel: dict[str, Any]) -> str:
+#     """Build a replayable image prompt from session and panel text."""
+#     simplified = document.get("simplified", {})
+#     keywords = simplified.get("keywords", [])
+#     if isinstance(keywords, list):
+#         keyword_text = ", ".join(str(item) for item in keywords[:6])
+#     else:
+#         keyword_text = ""
+
+#     character_names = {
+#         str(item.get("id", "")): str(item.get("name", ""))
+#         for item in document.get("characters", [])
+#         if isinstance(item, dict)
+#     }
+#     character_bits = []
+#     for item in document.get("characters", []):
+#         if not isinstance(item, dict):
+#             continue
+#         name = _compact_text(item.get("name", "Character"), 48)
+#         description = _compact_text(item.get("description", ""), 140)
+#         if description:
+#             character_bits.append(f"{name}: {description}")
+#         else:
+#             character_bits.append(name)
+
+#     dialogue_bits = []
+#     for line in panel.get("dialogue", []):
+#         if not isinstance(line, dict):
+#             continue
+#         character_id = str(line.get("character_id", "speaker"))
+#         speaker = character_names.get(character_id, character_id)
+#         text = _compact_text(line.get("text", ""), 120)
+#         if text:
+#             dialogue_bits.append(f"{speaker} says: {text}")
+
+#     parts = [
+#         f"Adult literacy educational comic panel, style: {document.get('style_id', 'minimal')}.",
+#         f"Language context: {document.get('language', 'en')}.",
+#         f"Article summary: {_compact_text(simplified.get('summary', ''), 260)}",
+#         f"Key ideas: {_compact_text(keyword_text, 160)}",
+#         f"Scene: {_compact_text(panel.get('scene_description', ''), 240)}",
+#         f"Characters: {_compact_text('; '.join(character_bits), 320)}",
+#         f"Dialogue context: {_compact_text('; '.join(dialogue_bits), 320)}",
+#         (
+#             "Create a simple low-detail comic illustration with clear character "
+#             "actions and uncluttered blank areas where the app can overlay "
+#             "separate HTML speech bubbles later. Do not draw speech bubbles, "
+#             "thought bubbles, captions, signs, labels, UI text, subtitles, or "
+#             "any text inside the image. Do not draw readable letters, "
+#             "readable words, typography, or fonts."
+#         ),
+#     ]
+#     return " ".join(part for part in parts if part and not part.endswith(": "))
 
 
 def _merge_negative_prompt(user_prompt: str) -> str:
@@ -95,14 +107,6 @@ def _merge_negative_prompt(user_prompt: str) -> str:
     if not user_prompt:
         return IMAGE_TEXT_NEGATIVE_PROMPT
     return f"{user_prompt}, {IMAGE_TEXT_NEGATIVE_PROMPT}"
-
-
-def _normalize_model_repo_id(value: Any) -> str:
-    """Return a model repo id string that Diffusers can validate."""
-    if isinstance(value, (list, tuple)):
-        value = value[0] if value else ""
-    model_repo_id = str(value or "black-forest-labs/FLUX.1-schnell").strip()
-    return model_repo_id or "black-forest-labs/FLUX.1-schnell"
 
 
 def _is_serverless_image_enabled(options: dict[str, Any]) -> bool:
@@ -163,7 +167,6 @@ def _generate_panel_image_serverless(
     num_inference_steps: int,
     seed: int,
 ) -> tuple[str, str]:
-    model_repo_id = _normalize_model_repo_id(model_repo_id)
     client = _get_inference_client()
     try:
         image = client.text_to_image(
@@ -219,7 +222,6 @@ def _generate_panel_image(
     num_inference_steps: int,
     use_serverless_api: bool,
 ) -> tuple[str, int, str]:
-    model_repo_id = _normalize_model_repo_id(model_repo_id)
     chosen_seed = random.randint(0, MAX_SEED) if randomize_seed else seed
     logger.info(f'\n\nIMAGE gen prompt:\n {prompt}\n\n')
     if use_serverless_api:
@@ -255,11 +257,9 @@ def _generate_panel_image(
         model_repo_id,
         token=token,
     )
-    # pipe.to(device="cuda", dtype=torch.float16)
 
     image = pipe(
         prompt=prompt,
-        # model=model_repo_id,
         negative_prompt=negative_prompt,
         width=width,
         height=height,

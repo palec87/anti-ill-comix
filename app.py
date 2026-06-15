@@ -45,7 +45,7 @@ STYLE_OPTIONS = ["minimal", "newspaper", "watercolor", "retro"]
 MAX_SEED = 2**31 - 1
 MAX_IMAGE_SIZE = 512
 SERVERLESS_IMAGE_MODEL_ID = "black-forest-labs/FLUX.1-schnell"
-SPACES_IMAGE_MODEL_ID = "black-forest-labs/FLUX.1-schnell", #"stabilityai/sdxl-turbo"
+SPACES_IMAGE_MODEL_ID = "black-forest-labs/FLUX.1-schnell"  #"stabilityai/sdxl-turbo"
 DEFAULT_TEXT_MODEL_ID = "Qwen/Qwen2.5-7B-Instruct"
 CSS_PATH = Path(__file__).parent / "assets" / "style.css"
 APP_CSS = CSS_PATH.read_text(encoding="utf-8") if CSS_PATH.exists() else ""
