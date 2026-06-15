@@ -13,6 +13,11 @@ short_description: Multilingual news-to-comic literacy practice for adults
 
 # Anti Ill Comix
 
+**Social post:** [LinkedIn](https://www.linkedin.com/posts/david-palecek-he-him-49478b21b_buildsmall-spaces-share-7472407166625386496-TVOq/?utm_source=share&utm_medium=member_desktop&rcm=ACoAADd3WPABP9izUbshdFS4XZ132_eodF2hpBU)
+
+**Demo video**
+
+
 Anti Ill Comix is a Gradio application that turns international news into simple comic-based reading and writing practice for adult learners. To make AI life-changing technology, technology-poor people should be given a chance. With global average literacy rate of 86% among adults, there is 756 million people getting further from modern life with every digital advance. Even in EU with the average literacy rate of 99%, that still means 3.5 million people.
 
 I happen to know one such community in the south of Portugal, and wanted to test automatic learning content generation with the following objectives:
