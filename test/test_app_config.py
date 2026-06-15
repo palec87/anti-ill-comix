@@ -14,8 +14,8 @@ def test_select_image_model_uses_flux_for_serverless():
     assert model_id == "black-forest-labs/FLUX.1-schnell"
 
 
-def test_select_image_model_uses_sdxl_turbo_for_spaces():
+def test_select_image_model_uses_flux_for_spaces():
     model_id = _select_image_model(use_serverless_api=False)
 
     assert model_id == SPACES_IMAGE_MODEL_ID
-    assert model_id == "stabilityai/sdxl-turbo"
+    assert model_id == "black-forest-labs/FLUX.1-schnell"

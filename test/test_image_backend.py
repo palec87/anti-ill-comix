@@ -8,6 +8,8 @@ from comic_gen.image_backend import (
     IMAGE_TEXT_NEGATIVE_PROMPT,
     ImageGenerationError,
     _generate_panel_image,
+    _get_diffusion_pipeline,
+    _pipeline_call_kwargs,
     build_image_prompt,
     generate_image_panels,
 )
@@ -85,15 +87,13 @@ def test_build_image_prompt_includes_session_and_panel_text():
     prompt = build_image_prompt(_document(), _panel())
 
     assert "watercolor" in prompt
-    assert "Language context: en" in prompt
-    assert "Adults read a short article" in prompt
-    assert "garden, reading, confidence" in prompt
-    assert "Guide: A calm mentor" in prompt
     assert "Two adults read together" in prompt
-    assert "We read one short instruction" in prompt
-    assert "Do not draw readable letters" in prompt
-    assert "Do not draw speech bubbles" in prompt
-    assert "readable words" in prompt
+    assert prompt.startswith("No speech bubbles. No thought bubbles.")
+    assert "No text. No letters." in prompt
+    assert "No captions, labels, signs" in prompt
+    assert "We read one short instruction" not in prompt
+    assert "Adults read a short article" not in prompt
+    assert len(prompt.split()) <= 60
 
 
 def test_generate_panel_image_uses_serverless_without_local_fallback(
@@ -133,6 +133,138 @@ def test_generate_panel_image_uses_serverless_without_local_fallback(
     assert captured["model_repo_id"] == "black-forest-labs/FLUX.1-schnell"
 
 
+def test_pipeline_call_kwargs_filters_unsupported_model_kwarg():
+    class _Pipe:
+        def __call__(self, prompt, width, max_sequence_length=None):
+            return None
+
+    kwargs = _pipeline_call_kwargs(
+        _Pipe(),
+        {
+            "prompt": "Prompt",
+            "width": 256,
+            "height": 256,
+            "model": "bad",
+            "max_sequence_length": 256,
+        },
+    )
+
+    assert kwargs == {
+        "prompt": "Prompt",
+        "width": 256,
+        "max_sequence_length": 256,
+    }
+
+
+def test_local_pipeline_is_cached(monkeypatch):
+    import comic_gen.image_backend as image_backend
+
+    calls = {"from_pretrained": 0, "to": 0}
+
+    class _Pipe:
+        def to(self, **kwargs):
+            calls["to"] += 1
+            return self
+
+    class _FakePipeline:
+        @staticmethod
+        def from_pretrained(*args, **kwargs):
+            calls["from_pretrained"] += 1
+            return _Pipe()
+
+    monkeypatch.setenv("HF_TOKEN", "hf_test")
+    monkeypatch.setattr(
+        "diffusers.DiffusionPipeline",
+        _FakePipeline,
+    )
+    image_backend._reset_diffusion_pipeline()
+
+    first = _get_diffusion_pipeline("black-forest-labs/FLUX.1-schnell")
+    second = _get_diffusion_pipeline("black-forest-labs/FLUX.1-schnell")
+
+    assert first is second
+    assert calls == {"from_pretrained": 1, "to": 1}
+
+
+def test_local_generation_retries_cuda_errors_and_resets(monkeypatch):
+    calls = {"attempts": 0, "resets": 0}
+
+    def _fake_local_once(**kwargs):
+        calls["attempts"] += 1
+        if calls["attempts"] < 3:
+            raise RuntimeError("NVML CUDACachingAllocator INTERNAL ASSERT")
+        return "C:/tmp/panel_1.png", "cuda"
+
+    def _fake_reset():
+        calls["resets"] += 1
+
+    monkeypatch.setattr(
+        "comic_gen.image_backend._generate_panel_image_local_once",
+        _fake_local_once,
+    )
+    monkeypatch.setattr(
+        "comic_gen.image_backend._reset_diffusion_pipeline",
+        _fake_reset,
+    )
+
+    out_path, used_seed, image_source = _generate_panel_image(
+        document={"trace": []},
+        prompt="Prompt",
+        negative_prompt="",
+        session_id="session-1",
+        panel_id="panel_1",
+        model_repo_id="black-forest-labs/FLUX.1-schnell",
+        seed=5,
+        randomize_seed=False,
+        width=256,
+        height=256,
+        guidance_scale=0.0,
+        num_inference_steps=2,
+        use_serverless_api=False,
+    )
+
+    assert out_path.endswith("panel_1.png")
+    assert used_seed == 5
+    assert image_source == "cuda"
+    assert calls == {"attempts": 3, "resets": 2}
+
+
+def test_local_generation_raises_after_three_failed_attempts(monkeypatch):
+    calls = {"attempts": 0}
+
+    def _fake_local_once(**kwargs):
+        calls["attempts"] += 1
+        raise RuntimeError("CUDA out of memory")
+
+    monkeypatch.setattr(
+        "comic_gen.image_backend._generate_panel_image_local_once",
+        _fake_local_once,
+    )
+    monkeypatch.setattr(
+        "comic_gen.image_backend._reset_diffusion_pipeline",
+        lambda: None,
+    )
+
+    with pytest.raises(ImageGenerationError, match="after 3 attempts"):
+        _generate_panel_image(
+            document={"trace": []},
+            prompt="Prompt",
+            negative_prompt="",
+            session_id="session-1",
+            panel_id="panel_1",
+            model_repo_id="black-forest-labs/FLUX.1-schnell",
+            seed=5,
+            randomize_seed=False,
+            width=256,
+            height=256,
+            guidance_scale=0.0,
+            num_inference_steps=2,
+            use_serverless_api=False,
+        )
+
+    assert calls["attempts"] == 3
+
+
 def test_generate_image_panels_passes_stored_image_prompt(monkeypatch):
     captured_prompt = ""
     captured_negative_prompt = ""
@@ -162,8 +294,8 @@ def test_generate_image_panels_passes_stored_image_prompt(monkeypatch):
     assert counts == {"serverless": 1}
     assert panels[0]["render"]["image_source"] == "serverless"
     assert panels[0]["render"]["image_prompt"] == captured_prompt
-    assert "Adults read a short article" in captured_prompt
-    assert "We read one short instruction" in captured_prompt
+    assert captured_prompt.startswith("No speech bubbles")
+    assert "Two adults read together" in captured_prompt
     assert IMAGE_TEXT_NEGATIVE_PROMPT in captured_negative_prompt
     assert panels[0]["render"]["overlay_applied"] is True
 
@@ -184,7 +316,7 @@ def test_generate_image_panels_records_prompt_for_deterministic_path(
 
     assert counts == {"deterministic": 1}
     assert panels[0]["render"]["image_source"] == "deterministic"
-    assert "Adults read a short article" in panels[0]["render"]["image_prompt"]
+    assert panels[0]["render"]["image_prompt"].startswith("No speech bubbles")
     assert panels[0]["render"]["overlay_applied"] is True
 
 

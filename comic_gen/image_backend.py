@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import random
+import inspect
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -19,6 +20,8 @@ IS_LOCAL = os.environ.get("LOCAL_DEV", "False") == "True"
 _GENERATOR: Any | None = None
 _GENERATOR_MODEL_ID = ""
 _INFERENCE_CLIENT: Any | None = None
+_PIPELINE: Any | None = None
+_PIPELINE_MODEL_ID = ""
 IMAGE_TEXT_NEGATIVE_PROMPT = (
     "speech bubble, speech bubbles, thought bubble, comic text, captions, "
     "caption, subtitle, subtitles, labels, label, sign, signs, UI text, "
@@ -40,65 +43,12 @@ def build_image_prompt(document: dict[str, Any], panel: dict[str, Any]) -> str:
     style_id = _compact_text(document.get("style_id", "minimal"), 32)
     parts = [
         "No speech bubbles. No thought bubbles. No text. No letters.",
-        "No captions, labels, signs, subtitles, logos, or speech.",
-        f"Simple low-detail {style_id} comic panel.",
+        "No captions, labels, subtitles, or speech.",
+        # f"Simple low-detail {style_id} comic panel.",
         f"Scene: {scene}.",
-        "Clear adult characters, expressive action, blank background space.",
+        f"Keep strict {style_id} style, blank background space.",
     ]
     return " ".join(part for part in parts if part and not part.endswith(": "))
-# def build_image_prompt(document: dict[str, Any], panel: dict[str, Any]) -> str:
-#     """Build a replayable image prompt from session and panel text."""
-#     simplified = document.get("simplified", {})
-#     keywords = simplified.get("keywords", [])
-#     if isinstance(keywords, list):
-#         keyword_text = ", ".join(str(item) for item in keywords[:6])
-#     else:
-#         keyword_text = ""
-
-#     character_names = {
-#         str(item.get("id", "")): str(item.get("name", ""))
-#         for item in document.get("characters", [])
-#         if isinstance(item, dict)
-#     }
-#     character_bits = []
-#     for item in document.get("characters", []):
-#         if not isinstance(item, dict):
-#             continue
-#         name = _compact_text(item.get("name", "Character"), 48)
-#         description = _compact_text(item.get("description", ""), 140)
-#         if description:
-#             character_bits.append(f"{name}: {description}")
-#         else:
-#             character_bits.append(name)
-
-#     dialogue_bits = []
-#     for line in panel.get("dialogue", []):
-#         if not isinstance(line, dict):
-#             continue
-#         character_id = str(line.get("character_id", "speaker"))
-#         speaker = character_names.get(character_id, character_id)
-#         text = _compact_text(line.get("text", ""), 120)
-#         if text:
-#             dialogue_bits.append(f"{speaker} says: {text}")
-
-#     parts = [
-#         f"Adult literacy educational comic panel, style: {document.get('style_id', 'minimal')}.",
-#         f"Language context: {document.get('language', 'en')}.",
-#         f"Article summary: {_compact_text(simplified.get('summary', ''), 260)}",
-#         f"Key ideas: {_compact_text(keyword_text, 160)}",
-#         f"Scene: {_compact_text(panel.get('scene_description', ''), 240)}",
-#         f"Characters: {_compact_text('; '.join(character_bits), 320)}",
-#         f"Dialogue context: {_compact_text('; '.join(dialogue_bits), 320)}",
-#         (
-#             "Create a simple low-detail comic illustration with clear character "
-#             "actions and uncluttered blank areas where the app can overlay "
-#             "separate HTML speech bubbles later. Do not draw speech bubbles, "
-#             "thought bubbles, captions, signs, labels, UI text, subtitles, or "
-#             "any text inside the image. Do not draw readable letters, "
-#             "readable words, typography, or fonts."
-#         ),
-#     ]
-#     return " ".join(part for part in parts if part and not part.endswith(": "))
 
 
 def _merge_negative_prompt(user_prompt: str) -> str:
@@ -107,6 +57,114 @@ def _merge_negative_prompt(user_prompt: str) -> str:
     if not user_prompt:
         return IMAGE_TEXT_NEGATIVE_PROMPT
     return f"{user_prompt}, {IMAGE_TEXT_NEGATIVE_PROMPT}"
+
+
+def _error_summary(exc: BaseException) -> str:
+    return f"{type(exc).__name__}: {exc}"
+
+
+def _reset_diffusion_pipeline() -> None:
+    """Drop the cached local pipeline and clear CUDA memory if available."""
+    global _PIPELINE, _PIPELINE_MODEL_ID
+    _PIPELINE = None
+    _PIPELINE_MODEL_ID = ""
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.ipc_collect()
+    except Exception as exc:
+        logger.warning("CUDA cache reset failed: %s", _error_summary(exc))
+
+
+def _get_diffusion_pipeline(model_repo_id: str) -> Any:
+    """Load and cache one local Diffusers pipeline per model id."""
+    global _PIPELINE, _PIPELINE_MODEL_ID
+    if _PIPELINE is not None and _PIPELINE_MODEL_ID == model_repo_id:
+        return _PIPELINE
+
+    from diffusers import DiffusionPipeline
+    import torch
+
+    token = os.environ.get("HF_TOKEN", "").strip()
+    if not token:
+        raise ImageGenerationError("HF_TOKEN is required for SPACES image gen")
+
+    pipe = DiffusionPipeline.from_pretrained(model_repo_id, token=token)
+    pipe.to(device="cuda", dtype=torch.float16)
+    _PIPELINE = pipe
+    _PIPELINE_MODEL_ID = model_repo_id
+    return pipe
+
+
+def _pipeline_call_kwargs(pipe: Any, raw_kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Filter generation kwargs to the active pipeline call signature."""
+    try:
+        signature = inspect.signature(pipe.__call__)
+    except (TypeError, ValueError):
+        return raw_kwargs
+
+    parameters = signature.parameters
+    if any(
+        param.kind == inspect.Parameter.VAR_KEYWORD
+        for param in parameters.values()
+    ):
+        return raw_kwargs
+
+    return {
+        key: value
+        for key, value in raw_kwargs.items()
+        if key in parameters
+    }
+
+
+def _generate_panel_image_local_once(
+    *,
+    prompt: str,
+    negative_prompt: str,
+    session_id: str,
+    panel_id: str,
+    model_repo_id: str,
+    width: int,
+    height: int,
+    guidance_scale: float,
+    num_inference_steps: int,
+) -> tuple[str, str]:
+    pipe = _get_diffusion_pipeline(model_repo_id)
+    raw_kwargs = {
+        "prompt": prompt,
+        "negative_prompt": negative_prompt,
+        "width": width,
+        "height": height,
+        "guidance_scale": guidance_scale,
+        "num_inference_steps": num_inference_steps,
+        "max_sequence_length": 256,
+    }
+    image = pipe(**_pipeline_call_kwargs(pipe, raw_kwargs)).images[0]
+    out_path = _build_output_path(session_id, panel_id)
+    image.save(out_path)
+    return str(out_path), "cuda"
+
+
+def _add_attempt_trace(
+    document: dict[str, Any],
+    panel_id: str,
+    model_repo_id: str,
+    attempt: int,
+    status: str,
+    elapsed_ms: int,
+    message: str,
+) -> None:
+    add_trace(
+        document,
+        "step4_image_attempt",
+        status,
+        (
+            f"{panel_id} model={model_repo_id} attempt={attempt} "
+            f"elapsed_ms={elapsed_ms}: {message}"
+        ),
+    )
 
 
 def _is_serverless_image_enabled(options: dict[str, Any]) -> bool:
@@ -224,59 +282,74 @@ def _generate_panel_image(
 ) -> tuple[str, int, str]:
     chosen_seed = random.randint(0, MAX_SEED) if randomize_seed else seed
     logger.info(f'\n\nIMAGE gen prompt:\n {prompt}\n\n')
-    if use_serverless_api:
-        out_path, source = _generate_panel_image_serverless(
-            prompt=prompt,
-            negative_prompt=negative_prompt,
-            session_id=session_id,
-            panel_id=panel_id,
-            model_repo_id=model_repo_id,
-            width=width,
-            height=height,
-            guidance_scale=guidance_scale,
-            num_inference_steps=num_inference_steps,
-            seed=chosen_seed,
-        )
-        add_trace(
-            document,
-            "step4: generate_panel_image()",
-            "ok",
-            f"{panel_id} image saved to {out_path}",
-        )
-        return out_path, chosen_seed, source
 
-    import torch
-    from diffusers import DiffusionPipeline
+    last_error: BaseException | None = None
+    for attempt in range(1, 3):
+        started = perf_counter()
+        try:
+            if use_serverless_api:
+                out_path, source = _generate_panel_image_serverless(
+                    prompt=prompt,
+                    negative_prompt=negative_prompt,
+                    session_id=session_id,
+                    panel_id=panel_id,
+                    model_repo_id=model_repo_id,
+                    width=width,
+                    height=height,
+                    guidance_scale=guidance_scale,
+                    num_inference_steps=num_inference_steps,
+                    seed=chosen_seed,
+                )
+            else:
+                out_path, source = _generate_panel_image_local_once(
+                    prompt=prompt,
+                    negative_prompt=negative_prompt,
+                    session_id=session_id,
+                    panel_id=panel_id,
+                    model_repo_id=model_repo_id,
+                    width=width,
+                    height=height,
+                    guidance_scale=guidance_scale,
+                    num_inference_steps=num_inference_steps,
+                )
+            elapsed_ms = int((perf_counter() - started) * 1000)
+            _add_attempt_trace(
+                document,
+                panel_id,
+                model_repo_id,
+                attempt,
+                "ok",
+                elapsed_ms,
+                f"image saved to {out_path}",
+            )
+            add_trace(
+                document,
+                "step4: generate_panel_image()",
+                "ok",
+                f"{panel_id} image saved to {out_path}",
+            )
+            return out_path, chosen_seed, source
+        except Exception as exc:
+            last_error = exc
+            elapsed_ms = int((perf_counter() - started) * 1000)
+            _add_attempt_trace(
+                document,
+                panel_id,
+                model_repo_id,
+                attempt,
+                "retry" if attempt < 3 else "error",
+                elapsed_ms,
+                _error_summary(exc),
+            )
+            if not use_serverless_api:
+                _reset_diffusion_pipeline()
 
-    token = os.environ.get("HF_TOKEN", "").strip()
-    if not token:
-        raise ImageGenerationError(
-            "HF_TOKEN is required for SPACES image gen"
+    raise ImageGenerationError(
+        (
+            f"Image generation failed for {panel_id} after 3 attempts "
+            f"(model={model_repo_id}): {_error_summary(last_error)}"
         )
-    pipe = DiffusionPipeline.from_pretrained(
-        model_repo_id,
-        token=token,
     )
-    pipe.to(device="cuda", dtype=torch.float16)
-    image = pipe(
-        prompt=prompt,
-        negative_prompt=negative_prompt,
-        width=width,
-        height=height,
-        guidance_scale=guidance_scale,
-        num_inference_steps=num_inference_steps,
-        max_sequence_length=256,
-    ).images[0]
-
-    out_path = _build_output_path(session_id, panel_id)
-    image.save(out_path)
-    add_trace(
-        document,
-        "step4: generate_panel_image()",
-        "ok",
-        f"{panel_id} image saved to {out_path}",
-    )
-    return str(out_path), chosen_seed, 'cuda'
 
 
 def generate_image_panels(

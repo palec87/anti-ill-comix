@@ -40,7 +40,7 @@ LANGUAGE_OPTIONS = {
     "Deutsch": "de",
 }
 
-_VERSION = 0.9
+_VERSION = 0.10
 STYLE_OPTIONS = ["minimal", "newspaper", "watercolor", "retro"]
 MAX_SEED = 2**31 - 1
 MAX_IMAGE_SIZE = 512
