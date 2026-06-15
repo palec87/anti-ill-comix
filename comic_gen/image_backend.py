@@ -259,7 +259,7 @@ def _generate_panel_image(
 
     image = pipe(
         prompt=prompt,
-        model=model_repo_id,
+        # model=model_repo_id,
         negative_prompt=negative_prompt,
         width=width,
         height=height,
