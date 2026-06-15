@@ -81,6 +81,9 @@ def test_localized_ui_updates_match_language_change_outputs():
     updates = _localized_ui_updates("Espanol")
 
     assert len(updates) == 20
+    assert updates[6]["label"] == (
+        "Usar generacion local/Spaces de imagen + texto"
+    )
     assert updates[7]["label"] == "Prompt negativo"
     assert updates[7]["placeholder"] == (
         "Exclusiones opcionales de calidad o estilo"

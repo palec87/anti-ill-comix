@@ -42,7 +42,7 @@ LANGUAGE_OPTIONS = {
     "Deutsch": "de",
 }
 
-_VERSION = 0.18
+_VERSION = 0.19
 STYLE_OPTIONS = ["minimal", "newspaper", "watercolor", "retro"]
 READING_LEVEL_OPTIONS = ["A1", "A2", "B1", "B2"]
 MAX_SEED = 2**31 - 1
@@ -322,7 +322,7 @@ def generate_strip(
     reading_level: str,
     use_live_feed: bool,
     panel_count: int,
-    use_serverless_api: bool,
+    use_local_generation: bool,
     negative_prompt: str,
     seed: int,
     randomize_seed: bool,
@@ -345,7 +345,8 @@ def generate_strip(
         {},
     )["reading_level"] = reading_level
 
-    # Toggle optional HF serverless generation path used for text and image.
+    # Serverless is the default runtime; local/Spaces generation is opt-in.
+    use_serverless_api = not use_local_generation
     os.environ["HF_USE_SERVERLESS"] = "1" if use_serverless_api else "0"
     os.environ["HF_USE_SERVERLESS_IMAGE"] = "1" if use_serverless_api else "0"
     image_model_id = _select_image_model(use_serverless_api)
@@ -400,7 +401,7 @@ def generate_strip_ui(
     reading_level: str,
     use_live_feed: bool,
     panel_count: int,
-    use_serverless_api: bool,
+    use_local_generation: bool,
     negative_prompt: str,
     seed: int,
     randomize_seed: bool,
@@ -426,7 +427,7 @@ def generate_strip_ui(
         reading_level,
         use_live_feed,
         panel_count,
-        use_serverless_api,
+        use_local_generation,
         negative_prompt,
         seed,
         randomize_seed,
@@ -533,8 +534,8 @@ with gr.Blocks() as demo:
             )
 
         with gr.Accordion("Advanced Options", open=False):
-            use_serverless_api_input = gr.Checkbox(
-                label="Use HF serverless API for text + image generation",
+            use_local_generation_input = gr.Checkbox(
+                label="Use local/Spaces image + text generation",
                 value=False,
             )
             negative_prompt_input = gr.Textbox(
@@ -618,7 +619,7 @@ with gr.Blocks() as demo:
             reading_level_input,
             live_feed_input,
             panel_count,
-            use_serverless_api_input,
+            use_local_generation_input,
             negative_prompt_input,
             seed_input,
             randomize_seed_input,
@@ -648,7 +649,7 @@ with gr.Blocks() as demo:
             reading_level_input,
             panel_count,
             live_feed_input,
-            use_serverless_api_input,
+            use_local_generation_input,
             negative_prompt_input,
             seed_input,
             randomize_seed_input,
